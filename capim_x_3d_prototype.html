@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Capim-x 3D — Rocket to the Moon</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#03030a; font-family:monospace; }
+  canvas { display:block; }
+
+  #flash {
+    position:fixed; inset:0; background:#ff3344; opacity:0; pointer-events:none;
+    transition:opacity 90ms ease-out; z-index:5;
+  }
+
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:4; color:#fff; }
+  #shipLabel   { position:absolute; left:14px; bottom:10px; font-size:11px; color:#5577aa; }
+  #scoreText   { position:absolute; right:14px; top:14px; font-size:16px; }
+  #livesText   { position:absolute; left:14px; top:40px; font-size:16px; }
+  #controlsText{ position:absolute; left:50%; bottom:6px; transform:translateX(-50%); font-size:10px; color:#889; white-space:nowrap; }
+  #fuelBarBg   { position:absolute; left:14px; top:14px; width:140px; height:14px; background:#222233; border:1px solid rgba(255,255,255,0.6); }
+  #fuelBarFill { position:absolute; left:0; top:0; height:100%; width:100%; background:#33cc66; }
+  #progressBarBg  { position:absolute; left:14px; right:14px; top:6px; height:4px; background:#222233; }
+  #progressBarFill{ position:absolute; left:0; top:0; height:100%; width:0%; background:#88bbff; }
+
+  .overlay { position:fixed; inset:0; z-index:10; pointer-events:none; }
+  .overlay.center-panel { display:flex; align-items:center; justify-content:center; }
+  .panel {
+    background:rgba(5,5,20,0.6); padding:26px 34px; border-radius:8px;
+    white-space:pre-line; text-align:center; line-height:1.55; font-size:13px;
+  }
+  #gameOverOverlay .panel { color:#ff5555; }
+  #winOverlay .panel      { color:#88ffcc; }
+
+  #introOverlay { overflow:hidden; }
+  .crawl-viewport {
+    position:absolute; inset:0; overflow:hidden;
+    perspective:350px; perspective-origin:50% 100%;
+  }
+  .crawl-viewport::after {
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background:linear-gradient(to bottom, #03030a 0%, transparent 22%, transparent 100%);
+  }
+  .crawl-text {
+    position:absolute; top:100%; left:50%;
+    width:620px; max-width:78%;
+    transform:translateX(-50%) rotateX(35deg);
+    transform-origin:50% 100%;
+    color:#eaf2ff; text-align:center; white-space:pre-line;
+    font-size:22px; line-height:2;
+    animation:crawl 38s linear forwards;
+  }
+  @keyframes crawl {
+    0%   { top:100%; }
+    100% { top:-760%; }
+  }
+  .skip-hint {
+    position:absolute; left:0; right:0; bottom:18px; text-align:center;
+    color:#889; font-size:11px; letter-spacing:0.5px;
+  }
+  .title-logo { font-size:44px; letter-spacing:6px; color:#fff; margin-bottom:10px; }
+  .title-tagline { font-size:13px; color:#9fd6c8; margin-bottom:30px; letter-spacing:1px; }
+  .title-prompt { font-size:14px; color:#fff; animation:blink 1.4s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0.25; } }
+  .select-title { font-size:15px; color:#fff; margin-bottom:18px; letter-spacing:1px; }
+  .select-option { font-size:13px; color:#cfe; margin:6px 0; }
+</style>
+</head>
+<body>
+<div id="flash"></div>
+<div id="hud">
+  <div id="fuelBarBg"><div id="fuelBarFill"></div></div>
+  <div id="progressBarBg"><div id="progressBarFill"></div></div>
+  <div id="scoreText"></div>
+  <div id="livesText"></div>
+  <div id="shipLabel">CAPIM-X</div>
+  <div id="controlsText">← → desliza   ↑ acelera   ↓ reduz empuxo   SPACE atira   M muta</div>
+</div>
+<div id="introOverlay" class="overlay" style="display:block">
+  <div class="crawl-viewport"><div class="crawl-text" id="crawlText"></div></div>
+  <div class="skip-hint">pressione qualquer tecla ou clique para pular</div>
+</div>
+<div id="titleOverlay" class="overlay center-panel" style="display:none">
+  <div class="panel">
+    <div class="title-logo">CAPIM-X</div>
+    <div class="title-tagline">ROCKET TO THE MOON</div>
+    <div class="title-prompt">[ENTER] ou clique — NOVO JOGO</div>
+  </div>
+</div>
+<div id="selectOverlay" class="overlay center-panel" style="display:none">
+  <div class="panel">
+    <div class="select-title">ESCOLHA A DIFICULDADE</div>
+    <div class="select-option">[1] FÁCIL — corredor largo, sem gravidade lateral</div>
+    <div class="select-option">[2] MÉDIO — gravidade lateral moderada</div>
+    <div class="select-option">[3] DIFÍCIL — corredor estreito, gravidade lateral forte</div>
+  </div>
+</div>
+<div id="gameOverOverlay" class="overlay center-panel" style="display:none"><div class="panel" id="gameOverPanel"></div></div>
+<div id="winOverlay" class="overlay center-panel" style="display:none"><div class="panel" id="winPanel"></div></div>
+<script>
+/* =======================================================
+   CAPIM-X 3D — ROCKET TO THE MOON
+   Porte do jogo 2D (Phaser, rocket_to_the_moon.html) para
+   um rail-shooter em terceira pessoa com Three.js. Reaproveita
+   integralmente o sistema de áudio procedural (Web Audio, é
+   independente de engine) e a narrativa/estrutura de estados
+   do original; a nuvem de asteroides substitui as paredes
+   sólidas do 2D — encostar nela também tira vida, mas sem ser
+   uma parede rígida (mais fiel à sensação de "cinturão").
+   Sem build, sem assets externos — Three.js via CDN clássico.
+   ======================================================= */
+
+function damp(a, b, lambda, dt) { return a + (b - a) * (1 - Math.exp(-lambda * dt)); }
+function dist2(a, b) { const dx=a.x-b.x, dy=a.y-b.y, dz=a.z-b.z; return dx*dx+dy*dy+dz*dz; }
+function sq(v) { return v*v; }
+
+// ---------- dificuldades (retunadas para a escala do mundo 3D) ----------
+const DIFFICULTIES = {
+  facil:   { label:'FÁCIL',   moonDistance:900,  corridorHalf:4.2, minHalf:3.4, maxHalf:5.0, fuelDrainMul:0.7, spawnMul:0.7, thrust:15, drag:11, maxSpeed:6.5, gravity:0   },
+  medio:   { label:'MÉDIO',   moonDistance:1500, corridorHalf:3.6, minHalf:2.6, maxHalf:5.2, fuelDrainMul:1.0, spawnMul:1.0, thrust:16, drag:9,  maxSpeed:7,   gravity:0.9 },
+  dificil: { label:'DIFÍCIL', moonDistance:2200, corridorHalf:3.0, minHalf:2.0, maxHalf:4.2, fuelDrainMul:1.3, spawnMul:1.4, thrust:15, drag:6,  maxSpeed:7.5, gravity:1.8 }
+};
+
+const SHIP_BASE = {
+  radius: 0.5,
+  baseScroll: 9,
+  maxScroll: 17,
+  boostMul: 1.5,
+  brakeMul: 0.55,
+  scrollLerp: 3.2,
+  bulletSpeed: 34,
+  shootCooldown: 220,
+  shotFuelCost: 0.8,
+};
+
+const CORRIDOR = {
+  segmentLength: 10,      // 1 "linha" — equivalente aos 32px do original
+  beltWidth: 3.2,         // banda estreita e densa — lê como barreira, não como poeira espalhada pelo mapa
+  beltOverlap: 0.35,      // só uma borda irregular (aspecto orgânico), sem invadir muito o corredor
+  rocksPerSide: 9,
+  rockMinR: 0.55,
+  rockMaxR: 1.15,
+  driftStep: 1.1,
+  maxCenterOffset: 7,
+  aheadDistance: 150,
+  behindMargin: 20,
+  hardLimitMargin: 6,     // clamp de segurança bem além da nuvem, invisível
+};
+
+/* =======================================================
+   ÁUDIO — 100% procedural (Web Audio API), copiado do jogo 2D
+   sem alterações: é puro Web Audio, não depende de Phaser
+   nem de Three.js.
+   ======================================================= */
+const CH = {
+  Am:[57,60,64], C:[60,64,67], F:[53,57,60], G:[55,59,62], Dm:[50,53,57], E:[52,56,59]
+};
+
+const AudioSys = {
+  ctx:null, master:null, musicGain:null, sfxGain:null, introGain:null,
+  timer:null, track:null, step:0, nextTime:0, muted:false,
+  introTimer:null, introPlayed:false,
+
+  init() {
+    if (this.ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    this.ctx = new AC();
+    this.master    = this.ctx.createGain(); this.master.gain.value    = 0.5;  this.master.connect(this.ctx.destination);
+    this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = 0.35; this.musicGain.connect(this.master);
+    this.sfxGain   = this.ctx.createGain(); this.sfxGain.gain.value   = 0.55; this.sfxGain.connect(this.master);
+    this.introGain = this.ctx.createGain(); this.introGain.gain.value = 1.0;  this.introGain.connect(this.musicGain);
+  },
+
+  mtof(m) { return 440 * Math.pow(2, (m-69)/12); },
+
+  blip(time, freq, dur, type, dest, peak=0.3, glideTo=null) {
+    if (!this.ctx) return;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, time);
+    if (glideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, glideTo), time+dur);
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(peak, time+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, time+dur);
+    o.connect(g); g.connect(dest);
+    o.start(time); o.stop(time+dur+0.03);
+  },
+
+  noise(time, dur, peak, filterFreq) {
+    if (!this.ctx) return;
+    const n = Math.floor(this.ctx.sampleRate*dur);
+    const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i=0;i<n;i++) data[i] = Math.random()*2-1;
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const filt = this.ctx.createBiquadFilter(); filt.type='lowpass';
+    filt.frequency.setValueAtTime(filterFreq, time);
+    filt.frequency.exponentialRampToValueAtTime(Math.max(80, filterFreq*0.2), time+dur);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(peak, time);
+    g.gain.exponentialRampToValueAtTime(0.0001, time+dur);
+    src.connect(filt); filt.connect(g); g.connect(this.sfxGain);
+    src.start(time); src.stop(time+dur);
+  },
+
+  menuTrack: {
+    stepDur:0.30, length:16,
+    play(step, time) {
+      const bars = [CH.Am, CH.F, CH.C, CH.G];
+      const chord = bars[Math.floor(step/4)%4];
+      this.blip(time, this.mtof(chord[step%3]+12), 0.55, 'triangle', this.musicGain, 0.16);
+      if (step%4===0) this.blip(time, this.mtof(chord[0]-12), 1.3, 'sine', this.musicGain, 0.20);
+      if (step%8===2) this.blip(time, this.mtof(chord[2]+24), 0.45, 'sine', this.musicGain, 0.07);
+    }
+  },
+  gameTrack: {
+    stepDur:0.13, length:32,
+    play(step, time) {
+      const bars = [CH.Am, CH.C, CH.F, CH.G, CH.Am, CH.F, CH.Dm, CH.E];
+      const chord = bars[Math.floor(step/4)%8];
+      this.blip(time, this.mtof(chord[0]-12), 0.12, 'square', this.musicGain, 0.14);
+      if (step%2===0) this.blip(time, 70, 0.10, 'sine', this.musicGain, 0.30, 40);
+      const seq = [0,1,2,1];
+      this.blip(time, this.mtof(chord[seq[step%4]]+12), 0.11, 'sawtooth', this.musicGain, 0.10);
+    }
+  },
+
+  playIntro() {
+    if (!this.ctx) return;
+    this.stopMusic();
+    this.introGain.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.introGain.gain.setValueAtTime(1.0, this.ctx.currentTime);
+    const t = this.ctx.currentTime + 0.15;
+    const dest = this.introGain;
+    this.blip(t, this.mtof(33), 8.4, 'sine',     dest, 0.18);
+    this.blip(t, this.mtof(45), 8.4, 'triangle', dest, 0.09);
+    const pad = (off, chord, dur) => chord.forEach(m => this.blip(t+off, this.mtof(m), dur, 'sine', dest, 0.055));
+    pad(0.0, CH.Am, 2.4); pad(2.4, CH.F, 2.4); pad(4.8, CH.G, 1.6); pad(6.4, CH.Am, 2.0);
+    const mel = [[0.0,64,0.8],[0.8,69,0.8],[1.6,72,1.2],[2.8,71,0.6],
+                 [3.4,69,1.4],[4.8,67,0.8],[5.6,64,0.8],[6.4,69,1.9]];
+    mel.forEach(([off,m,dur]) => this.blip(t+off, this.mtof(m), dur, 'triangle', dest, 0.20));
+    this.introTimer = setTimeout(() => this.startTrack(this.menuTrack), 8600);
+  },
+
+  startTrack(track) {
+    if (!this.ctx) return;
+    this.stopMusic();
+    this.track = track; this.step = 0; this.nextTime = this.ctx.currentTime + 0.1;
+    this._schedule();
+  },
+  _schedule() {
+    if (!this.track) return;
+    while (this.nextTime < this.ctx.currentTime + 0.2) {
+      this.track.play.call(this, this.step, this.nextTime);
+      this.nextTime += this.track.stepDur;
+      this.step = (this.step+1) % this.track.length;
+    }
+    this.timer = setTimeout(() => this._schedule(), 40);
+  },
+  stopMusic() {
+    if (this.timer)      { clearTimeout(this.timer); this.timer = null; }
+    if (this.introTimer) { clearTimeout(this.introTimer); this.introTimer = null; }
+    if (this.introGain && this.ctx) {
+      this.introGain.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.introGain.gain.setValueAtTime(0, this.ctx.currentTime);
+    }
+    this.track = null;
+  },
+
+  toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.5; },
+
+  shoot()   { if (!this.ctx) return; this.blip(this.ctx.currentTime, 900, 0.12, 'square', this.sfxGain, 0.22, 180); },
+  explosion(){ this.noise(this.ctx ? this.ctx.currentTime : 0, 0.35, 0.4, 900);
+               if (this.ctx) this.blip(this.ctx.currentTime, 120, 0.3, 'sawtooth', this.sfxGain, 0.18, 40); },
+  pickup()  { if (!this.ctx) return; const t=this.ctx.currentTime;
+              this.blip(t, this.mtof(72), 0.10, 'triangle', this.sfxGain, 0.22);
+              this.blip(t+0.09, this.mtof(79), 0.14, 'triangle', this.sfxGain, 0.22); },
+  gameOver(){ if (!this.ctx) return; this.stopMusic(); const t=this.ctx.currentTime;
+              [57,53,50,45].forEach((m,i)=> this.blip(t+i*0.22, this.mtof(m), 0.42, 'sawtooth', this.sfxGain, 0.24));
+              this.blip(t+0.9, this.mtof(33), 1.3, 'sine', this.sfxGain, 0.30); },
+  win()     { if (!this.ctx) return; this.stopMusic(); const t=this.ctx.currentTime;
+              [60,64,67,72,76].forEach((m,i)=> this.blip(t+i*0.13, this.mtof(m), 0.34, 'square', this.sfxGain, 0.22));
+              [60,64,67,72].forEach(m => this.blip(t+0.66, this.mtof(m), 1.5, 'triangle', this.sfxGain, 0.16)); }
+};
+
+// ---------- cena básica ----------
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x03030a, 0.012);
+
+const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight, 0.1, 2000);
+camera.position.set(0, 9, 12);
+camera.lookAt(0, -3, -26);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+scene.add(new THREE.AmbientLight(0x8899cc, 0.5));
+const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+sun.position.set(6, 12, 8);
+scene.add(sun);
+
+// ---------- lua distante (narrativa) ----------
+const moon = new THREE.Mesh(
+  new THREE.SphereGeometry(40, 24, 24),
+  new THREE.MeshStandardMaterial({ color:0xdddddd, roughness:1 })
+);
+moon.position.set(20, 30, -1800);
+moon.visible = false;
+scene.add(moon);
+
+// ---------- estrelas ----------
+(function makeStarfield() {
+  const count = 2200;
+  const positions = new Float32Array(count*3);
+  for (let i=0;i<count;i++) {
+    positions[i*3]   = (Math.random()-0.5)*160;
+    positions[i*3+1] = (Math.random()-0.5)*100;
+    positions[i*3+2] = -Math.random()*2000;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  const mat = new THREE.PointsMaterial({ color:0xffffff, size:0.6, sizeAttenuation:true });
+  scene.add(new THREE.Points(geo, mat));
+})();
+
+// ---------- nave ----------
+const ship = new THREE.Group();
+
+const hull = new THREE.Mesh(
+  new THREE.ConeGeometry(0.45, 1.6, 6),
+  new THREE.MeshStandardMaterial({ color:0xffffff, flatShading:true })
+);
+hull.rotation.x = -Math.PI/2; // ponta apontando para -Z (frente)
+ship.add(hull);
+
+const cockpit = new THREE.Mesh(
+  new THREE.SphereGeometry(0.24, 8, 8),
+  new THREE.MeshStandardMaterial({ color:0x3399ff, flatShading:true })
+);
+cockpit.position.set(0, 0.1, -0.2);
+ship.add(cockpit);
+
+const engine = new THREE.Mesh(
+  new THREE.ConeGeometry(0.28, 0.6, 6),
+  new THREE.MeshStandardMaterial({ color:0xff5533, emissive:0xff2200, emissiveIntensity:0.6, flatShading:true })
+);
+engine.rotation.x = Math.PI/2;
+engine.position.set(0, 0, 0.9);
+ship.add(engine);
+
+ship.visible = false;
+scene.add(ship);
+
+// ---------- materiais / geometrias reutilizados ----------
+const rockMats = [0x5c3a63, 0x4a2f4f, 0x3a2340].map(c => new THREE.MeshStandardMaterial({ color:c, flatShading:true }));
+const meteorMat = new THREE.MeshStandardMaterial({ color:0x8b6f47, flatShading:true });
+const droneBodyGeo = new THREE.SphereGeometry(0.42, 8, 6);
+const droneMat = new THREE.MeshStandardMaterial({ color:0x667788, flatShading:true });
+const droneSensorMat = new THREE.MeshStandardMaterial({ color:0xff3344, emissive:0x991122, emissiveIntensity:0.8 });
+const fuelCellMat = new THREE.MeshStandardMaterial({ color:0x33cc88, emissive:0x114433, emissiveIntensity:0.5, flatShading:true });
+const bulletPlayerGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6);
+const bulletPlayerMat = new THREE.MeshBasicMaterial({ color:0xffff44 });
+const bulletDroneGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6);
+const bulletDroneMat = new THREE.MeshBasicMaterial({ color:0xff4466 });
+
+// ---------- estado do jogo ----------
+let state = 'intro'; // intro | title | select | playing | gameover | win
+let diff = DIFFICULTIES.medio;
+let fuel = 100, lives = 3, score = 0, distanceTravelled = 0, moonDistance = diff.moonDistance;
+let scrollSpeed = SHIP_BASE.baseScroll;
+let vx = 0, shootCd = 0, gravityDir = 1;
+let invulnerable = false, invulnerableUntil = 0;
+
+let corridorCenter = 0;
+let corridorHalf = diff.corridorHalf;
+let nextSegmentZ = 0;
+let meteorCd = 3, droneCd = 7, fuelCd = 8;
+
+const segments = [];
+const meteors = [];
+const drones = [];
+const fuelCells = [];
+const playerBullets = [];
+const droneBullets = [];
+
+// ---------- corredor procedural (nuvem de asteroides) ----------
+function buildBeltSegment(z) {
+  corridorCenter += (Math.random()*2-1) * CORRIDOR.driftStep;
+  corridorCenter = THREE.MathUtils.clamp(corridorCenter, -CORRIDOR.maxCenterOffset, CORRIDOR.maxCenterOffset);
+  if (Math.random() < 0.08) {
+    corridorHalf = THREE.MathUtils.clamp(corridorHalf + (Math.random()*2-1)*1.2, diff.minHalf, diff.maxHalf);
+  }
+  const leftEdge = corridorCenter - corridorHalf;
+  const rightEdge = corridorCenter + corridorHalf;
+
+  const rocks = [];
+  [[leftEdge,-1], [rightEdge,1]].forEach(([edge,dir]) => {
+    for (let i=0; i<CORRIDOR.rocksPerSide; i++) {
+      const r = THREE.MathUtils.randFloat(CORRIDOR.rockMinR, CORRIDOR.rockMaxR);
+      const depth = THREE.MathUtils.randFloat(-CORRIDOR.beltOverlap, CORRIDOR.beltWidth);
+      const x = edge + dir*depth;
+      const y = THREE.MathUtils.randFloat(-3.4, 3.4);
+      const zz = z + THREE.MathUtils.randFloat(-CORRIDOR.segmentLength/2, CORRIDOR.segmentLength/2);
+      const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), rockMats[(Math.random()*rockMats.length)|0]);
+      mesh.position.set(x, y, zz);
+      mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+      mesh.userData.r = r;
+      scene.add(mesh);
+      rocks.push(mesh);
+    }
+  });
+
+  segments.push({ z, leftEdge, rightEdge, rocks });
+
+  if (state === 'playing') trySpawnObstacles(z, leftEdge, rightEdge);
+}
+
+function removeBeltSegment(seg) {
+  seg.rocks.forEach(r => { scene.remove(r); r.geometry.dispose(); });
+}
+
+function currentSegment(z) {
+  let best = segments[0], bestD = Infinity;
+  for (const s of segments) {
+    const d = Math.abs(s.z - z);
+    if (d < bestD) { bestD = d; best = s; }
+  }
+  return best;
+}
+
+// ---------- spawn de obstáculos (mesma cadência de linhas do jogo 2D) ----------
+function trySpawnObstacles(z, leftEdge, rightEdge) {
+  meteorCd--; droneCd--; fuelCd--;
+  const gapSize = rightEdge - leftEdge;
+  const pad = 0.6;
+
+  if (meteorCd <= 0 && gapSize > diff.minHalf*2*1.05) {
+    spawnMeteor(THREE.MathUtils.randFloat(leftEdge+pad, rightEdge-pad), z);
+    meteorCd = Math.round(THREE.MathUtils.randFloat(3,7)/diff.spawnMul);
+  }
+  if (droneCd <= 0 && gapSize > diff.minHalf*2*1.5) {
+    spawnDrone(THREE.MathUtils.randFloat(leftEdge+pad*1.5, rightEdge-pad*1.5), z);
+    droneCd = Math.round(THREE.MathUtils.randFloat(6,10)/diff.spawnMul);
+  }
+  if (fuelCd <= 0) {
+    spawnFuelCell((leftEdge+rightEdge)/2, z);
+    fuelCd = Math.round(THREE.MathUtils.randFloat(16,26));
+  }
+}
+
+function spawnMeteor(x, z) {
+  const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), meteorMat);
+  mesh.position.set(x, 0, z);
+  scene.add(mesh);
+  meteors.push({ mesh, extraSpeed: THREE.MathUtils.randFloat(1.4,4), spin: THREE.MathUtils.randFloat(-2.5,2.5) });
+}
+
+function spawnDrone(x, z) {
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(droneBodyGeo, droneMat));
+  const sensor = new THREE.Mesh(new THREE.SphereGeometry(0.14,6,6), droneSensorMat);
+  sensor.position.set(0, 0.1, -0.4);
+  group.add(sensor);
+  group.position.set(x, 0, z);
+  scene.add(group);
+  drones.push({ mesh:group, baseX:x, phase:Math.random()*1000, closingSpeed:THREE.MathUtils.randFloat(0.8,1.6), fireCd:THREE.MathUtils.randFloat(900,2200) });
+}
+
+function spawnFuelCell(x, z) {
+  const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.4, 0), fuelCellMat);
+  mesh.position.set(x, 0, z);
+  scene.add(mesh);
+  fuelCells.push({ mesh, phase: Math.random()*1000 });
+}
+
+function fireDroneBullet(d) {
+  const mesh = new THREE.Mesh(bulletDroneGeo, bulletDroneMat);
+  mesh.rotation.x = Math.PI/2;
+  mesh.position.copy(d.mesh.position);
+  scene.add(mesh);
+  droneBullets.push({ mesh });
+}
+
+function spawnPlayerBullet() {
+  const mesh = new THREE.Mesh(bulletPlayerGeo, bulletPlayerMat);
+  mesh.rotation.x = Math.PI/2;
+  mesh.position.set(ship.position.x, ship.position.y, ship.position.z - 1);
+  scene.add(mesh);
+  playerBullets.push({ mesh, spawnMs: performance.now() });
+}
+
+function clearAllEntities() {
+  meteors.splice(0).forEach(m => scene.remove(m.mesh));
+  drones.splice(0).forEach(d => scene.remove(d.mesh));
+  fuelCells.splice(0).forEach(f => scene.remove(f.mesh));
+  playerBullets.splice(0).forEach(b => scene.remove(b.mesh));
+  droneBullets.splice(0).forEach(b => scene.remove(b.mesh));
+  segments.splice(0).forEach(removeBeltSegment);
+}
+
+// preview inicial do corredor (atrás do menu)
+for (let i=0;i<20;i++) { buildBeltSegment(nextSegmentZ); nextSegmentZ -= CORRIDOR.segmentLength; }
+
+// ---------- dano / vida ----------
+const flashEl = document.getElementById('flash');
+function flashHit() {
+  flashEl.style.opacity = '0.5';
+  setTimeout(() => flashEl.style.opacity = '0', 90);
+}
+
+function damagePlayer() {
+  if (invulnerable || state !== 'playing') return;
+  lives--;
+  AudioSys.explosion();
+  flashHit();
+  updateHUD();
+  if (lives <= 0) { triggerGameOver('Impacto fatal no cinturão de meteoros.'); return; }
+  invulnerable = true;
+  invulnerableUntil = performance.now() + 1300;
+}
+
+// ---------- colisões ----------
+function handleCollisions() {
+  const shipR = SHIP_BASE.radius;
+
+  outer:
+  for (let bi=playerBullets.length-1; bi>=0; bi--) {
+    const b = playerBullets[bi];
+    for (let mi=meteors.length-1; mi>=0; mi--) {
+      const m = meteors[mi];
+      if (dist2(b.mesh.position, m.mesh.position) < sq(0.25+0.55)) {
+        scene.remove(b.mesh); playerBullets.splice(bi,1);
+        scene.remove(m.mesh); meteors.splice(mi,1);
+        score += 10; AudioSys.explosion();
+        continue outer;
+      }
+    }
+    for (let di=drones.length-1; di>=0; di--) {
+      const d = drones[di];
+      if (dist2(b.mesh.position, d.mesh.position) < sq(0.25+0.5)) {
+        scene.remove(b.mesh); playerBullets.splice(bi,1);
+        scene.remove(d.mesh); drones.splice(di,1);
+        score += 25; AudioSys.explosion();
+        continue outer;
+      }
+    }
+  }
+
+  for (let i=meteors.length-1;i>=0;i--) {
+    const m = meteors[i];
+    if (dist2(ship.position, m.mesh.position) < sq(shipR+0.55)) {
+      scene.remove(m.mesh); meteors.splice(i,1);
+      damagePlayer();
+    }
+  }
+  for (let i=drones.length-1;i>=0;i--) {
+    const d = drones[i];
+    if (dist2(ship.position, d.mesh.position) < sq(shipR+0.5)) {
+      scene.remove(d.mesh); drones.splice(i,1);
+      damagePlayer();
+    }
+  }
+  for (let i=droneBullets.length-1;i>=0;i--) {
+    const b = droneBullets[i];
+    if (dist2(ship.position, b.mesh.position) < sq(shipR+0.2)) {
+      scene.remove(b.mesh); droneBullets.splice(i,1);
+      damagePlayer();
+    }
+  }
+  for (let i=fuelCells.length-1;i>=0;i--) {
+    const f = fuelCells[i];
+    if (dist2(ship.position, f.mesh.position) < sq(shipR+0.4)) {
+      scene.remove(f.mesh); fuelCells.splice(i,1);
+      fuel = Math.min(100, fuel+40); score += 15; AudioSys.pickup();
+    }
+  }
+
+  if (!invulnerable) {
+    for (const seg of segments) {
+      if (Math.abs(seg.z - ship.position.z) > CORRIDOR.segmentLength*1.5) continue;
+      for (const rock of seg.rocks) {
+        if (dist2(ship.position, rock.position) < sq(shipR+rock.userData.r)) {
+          const segCenter = (seg.leftEdge+seg.rightEdge)/2;
+          vx = (ship.position.x < segCenter ? 1 : -1) * 4.5;
+          damagePlayer();
+          return;
+        }
+      }
+    }
+  }
+
+  const seg = currentSegment(ship.position.z);
+  const hardMin = seg.leftEdge - CORRIDOR.beltWidth - CORRIDOR.hardLimitMargin;
+  const hardMax = seg.rightEdge + CORRIDOR.beltWidth + CORRIDOR.hardLimitMargin;
+  ship.position.x = THREE.MathUtils.clamp(ship.position.x, hardMin, hardMax);
+}
+
+// ---------- HUD ----------
+const fuelBarFill = document.getElementById('fuelBarFill');
+const progressBarFill = document.getElementById('progressBarFill');
+const scoreText = document.getElementById('scoreText');
+const livesText = document.getElementById('livesText');
+const introOverlay = document.getElementById('introOverlay');
+const crawlText = document.getElementById('crawlText');
+const titleOverlay = document.getElementById('titleOverlay');
+const selectOverlay = document.getElementById('selectOverlay');
+const gameOverOverlay = document.getElementById('gameOverOverlay');
+const gameOverPanel = document.getElementById('gameOverPanel');
+const winOverlay = document.getElementById('winOverlay');
+const winPanel = document.getElementById('winPanel');
+
+function updateHUD() {
+  const pct = fuel/100;
+  fuelBarFill.style.width = (pct*100)+'%';
+  fuelBarFill.style.background = pct>0.5 ? '#33cc66' : (pct>0.2 ? '#ffcc33' : '#ff4444');
+  const prog = THREE.MathUtils.clamp(distanceTravelled/(moonDistance||1500), 0, 1);
+  progressBarFill.style.width = (prog*100)+'%';
+  scoreText.textContent = 'Score: '+Math.floor(score);
+  livesText.textContent = 'Vidas: ' + '♥'.repeat(Math.max(lives,0));
+}
+
+// ---------- narrativa (idêntica ao jogo 2D) ----------
+crawlText.textContent =
+  'CAPIM-X\n\n'+
+  '2049. A Terra esgotou seu recurso mais precioso.\n'+
+  'A última reserva conhecida está na Lua. Dezenas\n'+
+  'de missões já tentaram chegar — nenhuma voltou.\n\n'+
+  'Seus destroços viraram parte do cinturão de\n'+
+  'meteoros, ao lado de drones de defesa automatizados\n'+
+  'que ainda atacam qualquer nave que se aproxime.\n\n'+
+  'A Capim-x carrega um canhão de mineração\n'+
+  'adaptado: abre caminho pelos meteoros e neutraliza\n'+
+  'os drones. Não é uma nave de guerra — cada disparo\n'+
+  'consome combustível, o mesmo que decide se você\n'+
+  'chega ou vira mais um destroço.\n\n'+
+  'Sem freio: a nave desliza, a gravidade puxa,\n'+
+  'e a Lua cresce no horizonte.\n\n'+
+  'Desvie. Atire. Abasteça. Chegue.';
+
+// ---------- controle de estado ----------
+function startGame(diffKey) {
+  diff = DIFFICULTIES[diffKey] || DIFFICULTIES.medio;
+  state = 'playing';
+  fuel = 100; lives = 3; score = 0; distanceTravelled = 0;
+  scrollSpeed = SHIP_BASE.baseScroll;
+  corridorCenter = 0; corridorHalf = diff.corridorHalf;
+  meteorCd = 3; droneCd = 7; fuelCd = 8;
+  invulnerable = false; invulnerableUntil = 0;
+  vx = 0; shootCd = 0;
+  gravityDir = Math.random() < 0.5 ? 1 : -1;
+  moonDistance = diff.moonDistance;
+
+  clearAllEntities();
+  nextSegmentZ = 0;
+  for (let i=0;i<20;i++) { buildBeltSegment(nextSegmentZ); nextSegmentZ -= CORRIDOR.segmentLength; }
+
+  ship.position.set(0,0,0);
+  ship.visible = true;
+  moon.visible = false; moon.scale.set(1,1,1);
+
+  introOverlay.style.display = 'none';
+  titleOverlay.style.display = 'none';
+  selectOverlay.style.display = 'none';
+  gameOverOverlay.style.display = 'none';
+  winOverlay.style.display = 'none';
+  updateHUD();
+  AudioSys.startTrack(AudioSys.gameTrack);
+}
+
+function goToTitle() {
+  if (state !== 'intro') return;
+  state = 'title';
+  introOverlay.style.display = 'none';
+  titleOverlay.style.display = 'flex';
+}
+
+function goToSelect() {
+  if (state !== 'title') return;
+  state = 'select';
+  titleOverlay.style.display = 'none';
+  selectOverlay.style.display = 'flex';
+}
+
+function triggerGameOver(reason) {
+  state = 'gameover';
+  ship.visible = false;
+  AudioSys.gameOver();
+  gameOverPanel.textContent =
+    `A MISSÃO SE PERDEU\n${reason}\n\nDistância: ${Math.floor(distanceTravelled)}\nScore: ${Math.floor(score)}\n\n`+
+    `Mais um destroço no caminho de quem vier depois.\n\n[1] Fácil  [2] Médio  [3] Difícil`;
+  gameOverOverlay.style.display = 'flex';
+}
+
+function winGame() {
+  state = 'win';
+  ship.visible = false;
+  AudioSys.win();
+  moon.visible = true;
+  winPanel.textContent =
+    `A CAPIM-X CHEGOU NA LUA\n\nDificuldade: ${diff.label}\nScore: ${Math.floor(score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`;
+  winOverlay.style.display = 'flex';
+}
+
+// ---------- input ----------
+const keys = {};
+const CAPTURED_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'];
+
+function armAudio() {
+  AudioSys.init();
+  if (AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
+  if (state === 'intro' && !AudioSys.introPlayed && !AudioSys.track) {
+    AudioSys.introPlayed = true;
+    AudioSys.playIntro();
+  } else if ((state === 'title' || state === 'select') && !AudioSys.track && !AudioSys.introTimer) {
+    AudioSys.startTrack(AudioSys.menuTrack);
+  }
+}
+
+crawlText.addEventListener('animationend', () => { if (state === 'intro') goToTitle(); });
+
+addEventListener('keydown', e => {
+  if (CAPTURED_KEYS.includes(e.code)) e.preventDefault();
+  keys[e.code] = true;
+  armAudio();
+  if (e.code === 'KeyM') AudioSys.toggleMute();
+
+  if (state === 'intro') { goToTitle(); return; }
+  if (state === 'title') { if (e.code==='Enter' || e.code==='Space') goToSelect(); return; }
+  if (state==='select' || state==='gameover' || state==='win') {
+    if (e.code==='Digit1') startGame('facil');
+    else if (e.code==='Digit2') startGame('medio');
+    else if (e.code==='Digit3') startGame('dificil');
+    else if (e.code==='Space') startGame('medio');
+  }
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('pointerdown', e => {
+  armAudio();
+  if (state === 'intro') goToTitle();
+  else if (state === 'title') goToSelect();
+});
+
+// ---------- câmera em terceira pessoa ----------
+const camOffset = new THREE.Vector3(0, 7.5, 9.5);
+const desiredCamPos = new THREE.Vector3();
+const camTarget = new THREE.Vector3();
+
+// ---------- loop principal ----------
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (state !== 'playing') {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  const now = performance.now();
+  const boosting = keys['ArrowUp'];
+  const braking  = keys['ArrowDown'];
+
+  const difficultyT = THREE.MathUtils.clamp(distanceTravelled/moonDistance, 0, 1);
+  let target = THREE.MathUtils.lerp(SHIP_BASE.baseScroll, SHIP_BASE.maxScroll, difficultyT);
+  if (boosting) target *= SHIP_BASE.boostMul;
+  if (braking) target *= SHIP_BASE.brakeMul;
+  scrollSpeed = damp(scrollSpeed, target, SHIP_BASE.scrollLerp, dt);
+
+  let drain = (4 + (boosting?3:0) - (braking?2:0)) * diff.fuelDrainMul;
+  drain = Math.max(drain, 1);
+  fuel -= drain*dt;
+
+  if (keys['ArrowLeft'])  vx -= diff.thrust*dt;
+  if (keys['ArrowRight']) vx += diff.thrust*dt;
+  vx += gravityDir*diff.gravity*dt;
+  if (vx > 0) vx = Math.max(0, vx - diff.drag*dt);
+  else if (vx < 0) vx = Math.min(0, vx + diff.drag*dt);
+  vx = THREE.MathUtils.clamp(vx, -diff.maxSpeed, diff.maxSpeed);
+
+  ship.position.x += vx*dt;
+  ship.position.z -= scrollSpeed*dt;
+  ship.rotation.z = damp(ship.rotation.z, -vx*0.12, 8, dt);
+  distanceTravelled = -ship.position.z;
+
+  shootCd -= dt*1000;
+  if (keys['Space'] && shootCd <= 0 && fuel > 0.5) {
+    spawnPlayerBullet();
+    shootCd = SHIP_BASE.shootCooldown;
+    fuel -= SHIP_BASE.shotFuelCost;
+    AudioSys.shoot();
+  }
+
+  if (fuel <= 0) { fuel = 0; updateHUD(); triggerGameOver('Sem combustível — à deriva no vácuo.'); return; }
+
+  if (invulnerable) {
+    ship.visible = Math.floor(now/120)%2===0;
+    if (now > invulnerableUntil) invulnerable = false;
+  } else {
+    ship.visible = true;
+  }
+
+  while (ship.position.z - nextSegmentZ < CORRIDOR.aheadDistance) {
+    buildBeltSegment(nextSegmentZ);
+    nextSegmentZ -= CORRIDOR.segmentLength;
+  }
+  while (segments.length && segments[0].z > ship.position.z + CORRIDOR.behindMargin) {
+    removeBeltSegment(segments.shift());
+  }
+
+  for (let i=meteors.length-1;i>=0;i--) {
+    const m = meteors[i];
+    m.mesh.position.z += m.extraSpeed*dt;
+    m.mesh.rotation.x += m.spin*dt;
+    m.mesh.rotation.y += m.spin*0.6*dt;
+    if (m.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(m.mesh); meteors.splice(i,1); }
+  }
+  for (let i=drones.length-1;i>=0;i--) {
+    const d = drones[i];
+    d.mesh.position.x = d.baseX + Math.sin((now+d.phase)/300)*1.2;
+    d.mesh.position.z += d.closingSpeed*dt;
+    d.fireCd -= dt*1000;
+    if (d.fireCd <= 0) { fireDroneBullet(d); d.fireCd = THREE.MathUtils.randFloat(1500,3000); }
+    if (d.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(d.mesh); drones.splice(i,1); }
+  }
+  for (const f of fuelCells) { f.mesh.position.y = Math.sin((now+f.phase)/400)*0.2; }
+  for (let i=fuelCells.length-1;i>=0;i--) {
+    const f = fuelCells[i];
+    if (f.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(f.mesh); fuelCells.splice(i,1); }
+  }
+  for (let i=playerBullets.length-1;i>=0;i--) {
+    const b = playerBullets[i];
+    b.mesh.position.z -= SHIP_BASE.bulletSpeed*dt;
+    if (now - b.spawnMs > 2500) { scene.remove(b.mesh); playerBullets.splice(i,1); }
+  }
+  for (let i=droneBullets.length-1;i>=0;i--) {
+    const b = droneBullets[i];
+    b.mesh.position.z += 11*dt;
+    if (b.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(b.mesh); droneBullets.splice(i,1); }
+  }
+
+  handleCollisions();
+
+  if (difficultyT > 0.75) {
+    const p = THREE.MathUtils.clamp((difficultyT-0.75)/0.25, 0, 1);
+    moon.visible = true;
+    moon.scale.setScalar(1 + p*3);
+    moon.position.set(20, 30, ship.position.z - 300 + p*250);
+  }
+
+  if (distanceTravelled >= moonDistance) { winGame(); return; }
+
+  updateHUD();
+
+  desiredCamPos.set(ship.position.x*0.6 + camOffset.x, ship.position.y + camOffset.y, ship.position.z + camOffset.z);
+  camera.position.lerp(desiredCamPos, 1 - Math.exp(-8*dt));
+  camTarget.set(ship.position.x, ship.position.y - 1.4, ship.position.z - 6);
+  camera.lookAt(camTarget);
+
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
