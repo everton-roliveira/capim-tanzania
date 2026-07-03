@@ -1577,7 +1577,8 @@ const LaunchSequence = {
 
     this.startMs = performance.now();
     this.active = true;
-    requestAnimationFrame(() => this.tick());
+    this.tick();   // roda o 1º frame já (câmera + nave no lançamento) — sem esperar o próximo rAF,
+                   // assim nenhum frame é renderizado com a câmera do menu
   },
 
   tick() {
