@@ -1,6 +1,6 @@
 # capim-tanzania
 
-Jogo de nave em HTML/JS, feito com [Phaser 3](https://phaser.io/), em um único arquivo — sem build, sem dependências instaladas, sem assets externos (todos os sprites são desenhados via código).
+Jogo em que você pilota um foguete até a Lua, feito em HTML/JS com [Phaser 3](https://phaser.io/), em um único arquivo — sem build, sem dependências instaladas, sem assets externos (todos os sprites são desenhados via código).
 
 ## Como o jogo nasceu
 
@@ -18,9 +18,9 @@ Ano 2049. A Terra esgotou seu recurso mais precioso — o **Capim**. E a última
 
 Dezenas de missões já tentaram chegar lá. Nenhuma voltou. Os destroços dessas tentativas agora flutuam pelo caminho, misturados a um cinturão de meteoros que separa a Terra da sua última esperança verde.
 
-Você pilota a **Capim-X**, a última nave que a humanidade conseguiu construir. Equipada com um canhão de pulso e um tanque de combustível limitado, cada tiro e cada manobra gastam energia. As células de combustível abandonadas pelas missões anteriores podem ser a diferença entre chegar ou virar mais um destroço no caminho de quem vier depois.
+Você pilota o **Capim-X**, o último foguete que a humanidade conseguiu construir. Equipado com um canhão de pulso e um tanque de combustível limitado, cada tiro e cada manobra gastam energia. As células de combustível abandonadas pelas missões anteriores podem ser a diferença entre chegar ou virar mais um destroço no caminho de quem vier depois.
 
-O espaço não perdoa: aqui não existe freio. A nave desliza, a gravidade puxa, e a Lua cresce lentamente no horizonte.
+O espaço não perdoa: a gravidade puxa e o foguete desliza, mas o comando de freio ajuda a conter o impulso. A Lua cresce lentamente no horizonte.
 
 A missão é simples de explicar e difícil de cumprir: **atire, desvie, abasteça, chegue.**
 
@@ -39,7 +39,7 @@ Não precisa instalar nada — é um único arquivo HTML que carrega o Phaser vi
 |-----------|-------------------------------|
 | `←` `→`   | Desliza lateralmente          |
 | `↑`       | Acelera                       |
-| `↓`       | Reduz empuxo                  |
+| `↓`       | Freia / reduz empuxo          |
 | `Espaço`  | Atira (gasta combustível)     |
 | `1` `2` `3` | Escolhe dificuldade (Fácil/Médio/Difícil) |
 | `M`       | Muta/desmuta o áudio           |
