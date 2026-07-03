@@ -1930,23 +1930,12 @@ const FLAG_POLE_HEIGHT = 2.8;
 const flagPoleMat = new THREE.MeshStandardMaterial({ color:0xcccccc, roughness:0.4, metalness:0.6 });
 const flagPoleGeo = new THREE.CylinderGeometry(0.03, 0.03, FLAG_POLE_HEIGHT, 6);
 const flagRodGeo = new THREE.CylinderGeometry(0.017, 0.017, 1.05, 6);
-// fina borda roxa + pano bem verde: as cores da própria Capim-X (hullMat/accentMat)
-const flagBorderMat = new THREE.MeshStandardMaterial({ color:0x59399e, metalness:0.08, roughness:0.7, side:THREE.DoubleSide });
-const flagBorderGeo = new THREE.PlaneGeometry(1.10, 0.68);
-const flagClothMat = new THREE.MeshStandardMaterial({ color:0xa6cd15, metalness:0, roughness:0.88, side:THREE.DoubleSide });
-const flagClothGeo = new THREE.PlaneGeometry(1.04, 0.64, 12, 6);
-// Ondulação estática: sugere o pano dobrado sem fingir vento na Lua.
-for (let i=0;i<flagClothGeo.attributes.position.count;i++) {
-  const x=flagClothGeo.attributes.position.getX(i), y=flagClothGeo.attributes.position.getY(i);
-  flagClothGeo.attributes.position.setZ(i,Math.sin((x+0.52)*16+y*3)*0.018*(0.7-Math.abs(y)));
-}
-flagClothGeo.attributes.position.needsUpdate=true;
-flagClothGeo.computeVertexNormals();
-const flagLogoTex = new THREE.TextureLoader().load('capim-logo.png');
-flagLogoTex.encoding=THREE.sRGBEncoding;
-flagLogoTex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-const flagLogoMat = new THREE.MeshStandardMaterial({ map:flagLogoTex, transparent:true, roughness:0.82, metalness:0, side:THREE.DoubleSide });
-const flagLogoGeo = new THREE.PlaneGeometry(1.0, 0.5);
+// Pano verde sólido (cor da marca), sem logo e sem canvas/textura — plano
+// liso, pra não ter nenhuma variação de normal/sombreamento que possa
+// parecer manchado.
+const FLAG_W = 1.10, FLAG_H = 0.68;
+const flagClothMat = new THREE.MeshStandardMaterial({ color:0xa6cd15, roughness:0.85, metalness:0, side:THREE.DoubleSide });
+const flagClothGeo = new THREE.PlaneGeometry(FLAG_W, FLAG_H);
 
 let flag = null;
 function plantFlag() {
@@ -1962,21 +1951,9 @@ function plantFlag() {
   rod.position.set(0.53, FLAG_POLE_HEIGHT - 0.34, 0);
   group.add(rod);
 
-  const border = new THREE.Mesh(flagBorderGeo, flagBorderMat);
-  border.position.set(0.53, FLAG_POLE_HEIGHT - 0.34, -0.003);
-  group.add(border);
-
   const cloth = new THREE.Mesh(flagClothGeo, flagClothMat);
   cloth.position.set(0.53, FLAG_POLE_HEIGHT - 0.34, 0);
   group.add(cloth);
-
-  const logo = new THREE.Mesh(flagLogoGeo, flagLogoMat);
-  logo.position.set(0.53, FLAG_POLE_HEIGHT - 0.34, 0.006);
-  group.add(logo);
-  const logoBack = new THREE.Mesh(flagLogoGeo, flagLogoMat);
-  logoBack.position.set(0.53, FLAG_POLE_HEIGHT - 0.34, -0.006);
-  logoBack.rotation.y = Math.PI;
-  group.add(logoBack);
 
   // afastada mais pro lado pra não ficar atrás do painel central de vitória
   group.position.set(touchdown.x + 2.8, touchdown.y, touchdown.z + 0.3);
@@ -2071,7 +2048,8 @@ function startAstronautSequence() {
   astronautParts.carriedPole.visible=true;
   astronautExit.set(touchdown.x+0.38,touchdown.y+1.45,touchdown.z+0.08);
   astronautGround.set(touchdown.x+0.72,touchdown.y,touchdown.z+0.08);
-  astronautFlagPos.set(touchdown.x+2.46,touchdown.y,touchdown.z+0.28);
+  // mesmo ponto usado por plantFlag() (afastado do painel central de vitória)
+  astronautFlagPos.set(touchdown.x+2.8,touchdown.y,touchdown.z+0.3);
   astronaut.position.copy(astronautExit);
   astronaut.rotation.set(0,Math.PI/2,0);
   astronaut.visible=true;
