@@ -299,6 +299,37 @@ const AudioSys = {
               [60,64,67,72].forEach(m => this.blip(t+0.66, this.mtof(m), 1.5, 'triangle', this.sfxGain, 0.16)); }
 };
 
+/* =======================================================
+   RÁDIO NASA — trechos aleatórios de um MP3 real, tocando
+   POR CIMA da trilha procedural (não substitui nada). É um
+   HTMLAudioElement independente do Web Audio: começa num
+   ponto aleatório do arquivo, toca alguns segundos e para.
+   ======================================================= */
+const RadioChatter = {
+  el: null, stopTimer: null, ready: false,
+  init() {
+    if (this.el) return;
+    this.el = new Audio(encodeURI('Apollo 11 Radio Chatter - All Things 3D (youtube).mp3'));
+    this.el.preload = 'auto';
+    this.el.volume = 0.4;
+    this.el.addEventListener('loadedmetadata', () => { this.ready = true; });
+  },
+  playClip() {
+    if (!this.el || !this.ready || AudioSys.muted) return;
+    const dur = this.el.duration;
+    if (!dur || !isFinite(dur)) return;
+    const clipLen = 4 + Math.random()*4;
+    this.el.currentTime = Math.random() * Math.max(0, dur - clipLen);
+    this.el.play().catch(() => {});
+    clearTimeout(this.stopTimer);
+    this.stopTimer = setTimeout(() => { if (this.el) this.el.pause(); }, clipLen*1000);
+  },
+  stop() {
+    clearTimeout(this.stopTimer);
+    if (this.el) this.el.pause();
+  }
+};
+
 // ---------- cena básica ----------
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x03030a, 0.012);
@@ -535,6 +566,7 @@ let corridorCenter = 0;
 let corridorHalf = diff.corridorHalf;
 let nextSegmentZ = 0;
 let meteorCd = 3, droneCd = 7, fuelCd = 8;
+let radioTimer = 0, radioNextSound = Math.random()*2 + 2;
 
 const segments = [];
 const meteors = [];
@@ -829,6 +861,7 @@ function startGame(diffKey) {
   vx = 0; shootCd = 0;
   gravityDir = Math.random() < 0.5 ? 1 : -1;
   moonDistance = diff.moonDistance;
+  radioTimer = 0; radioNextSound = Math.random()*2 + 2;
 
   clearAllEntities();
   nextSegmentZ = 0;
@@ -867,6 +900,7 @@ function goToSelect() {
 function triggerGameOver(reason) {
   state = 'gameover';
   ship.visible = false;
+  RadioChatter.stop();
   AudioSys.gameOver();
   gameOverPanel.textContent =
     `A MISSÃO SE PERDEU\n${reason}\n\nDistância: ${Math.floor(distanceTravelled)}\nScore: ${Math.floor(score)}\n\n`+
@@ -877,6 +911,7 @@ function triggerGameOver(reason) {
 function winGame() {
   state = 'win';
   ship.visible = false;
+  RadioChatter.stop();
   AudioSys.win();
   moon.visible = true;
   winPanel.textContent =
@@ -890,6 +925,7 @@ const CAPTURED_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'];
 
 function armAudio() {
   AudioSys.init();
+  RadioChatter.init();
   if (AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
   if (state === 'intro' && !AudioSys.introPlayed && !AudioSys.track) {
     AudioSys.introPlayed = true;
@@ -905,7 +941,7 @@ addEventListener('keydown', e => {
   if (CAPTURED_KEYS.includes(e.code)) e.preventDefault();
   keys[e.code] = true;
   armAudio();
-  if (e.code === 'KeyM') AudioSys.toggleMute();
+  if (e.code === 'KeyM') { AudioSys.toggleMute(); if (AudioSys.muted) RadioChatter.stop(); }
 
   if (state === 'intro') { goToTitle(); return; }
   if (state === 'title') { if (e.code==='Enter' || e.code==='Space') goToSelect(); return; }
@@ -943,6 +979,13 @@ function animate() {
   const now = performance.now();
   const boosting = keys['ArrowUp'];
   const braking  = keys['ArrowDown'];
+
+  radioTimer += dt;
+  if (radioTimer > radioNextSound) {
+    RadioChatter.playClip();
+    radioTimer = 0;
+    radioNextSound = Math.random()*5 + 5;
+  }
 
   const difficultyT = THREE.MathUtils.clamp(distanceTravelled/moonDistance, 0, 1);
 
