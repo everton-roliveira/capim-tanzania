@@ -25,10 +25,21 @@
   #scoreText   { position:absolute; right:14px; top:14px; font-size:16px; }
   #livesText   { position:absolute; left:14px; top:40px; font-size:16px; }
   #controlsText{ position:absolute; left:50%; bottom:6px; transform:translateX(-50%); font-size:10px; color:#889; white-space:nowrap; }
-  #fuelBarBg   { position:absolute; left:14px; top:14px; width:140px; height:14px; background:#222233; border:1px solid rgba(255,255,255,0.6); }
+  #fuelBarBg   { position:absolute; left:14px; top:14px; width:168px; height:15px; background:#222233; border:1px solid rgba(255,255,255,0.6); }
   #fuelBarFill { position:absolute; left:0; top:0; height:100%; width:100%; background:#33cc66; }
+  #fuelTankTicks { position:absolute; inset:0; pointer-events:none; }
+  .fuel-tick { position:absolute; top:0; bottom:0; width:1px; background:rgba(5,8,18,0.72); box-shadow:0 0 0 1px rgba(255,255,255,0.12); }
+  #fuelTankText { position:absolute; left:192px; top:12px; font-size:11px; color:#a9bede; white-space:nowrap; }
   #progressBarBg  { position:absolute; left:14px; right:14px; top:6px; height:4px; background:#222233; }
   #progressBarFill{ position:absolute; left:0; top:0; height:100%; width:0%; background:#88bbff; }
+  #pauseButton {
+    position:absolute; right:14px; top:42px; pointer-events:auto;
+    width:38px; height:32px; border-radius:8px; display:none; align-items:center; justify-content:center;
+    font-family:'Orbitron', sans-serif; font-weight:900; color:#dcecff;
+    background:rgba(20,30,70,0.58); border:1px solid rgba(140,185,255,0.42);
+    cursor:pointer; box-shadow:0 0 16px rgba(80,140,255,0.22);
+  }
+  #pauseButton:hover { border-color:rgba(170,215,255,0.82); box-shadow:0 0 24px rgba(100,165,255,0.42); }
   .stage-tick { position:absolute; top:-2px; width:2px; height:8px; background:#9fd6c8; }
   #stageMsg {
     position:absolute; left:50%; top:22%; transform:translateX(-50%);
@@ -399,19 +410,42 @@
   .mini-diff {
     padding:8px 12px; font-size:11px; letter-spacing:1px; border-left-width:3px;
   }
+  .pause-panel {
+    pointer-events:auto; width:380px; max-width:88vw; padding:30px 34px 26px;
+    border-radius:18px; text-align:center;
+    background:linear-gradient(160deg, rgba(16,22,44,0.88), rgba(5,8,20,0.94));
+    border:1px solid rgba(140,185,255,0.34);
+    box-shadow:0 0 80px rgba(70,120,255,0.24), inset 0 0 44px rgba(30,80,150,0.12);
+    backdrop-filter:blur(5px);
+  }
+  .pause-title {
+    font-family:'Orbitron', sans-serif; font-weight:900; color:#f6fbff;
+    font-size:24px; letter-spacing:3px; text-transform:uppercase;
+    text-shadow:0 0 22px rgba(136,187,255,0.45);
+  }
+  .pause-copy {
+    margin:12px auto 20px; max-width:310px;
+    font-family:'Exo 2', sans-serif; font-size:13px; line-height:1.5; color:#a9bede;
+  }
+  .pause-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .pause-actions .btn-primary, .pause-actions .btn-secondary, .pause-actions .btn-back {
+    margin-top:0; padding:13px 10px; font-size:12px;
+  }
 </style>
 </head>
 <body>
 <div id="flash"></div>
 <div class="space-scene" id="spaceScene"><div class="earth"></div><div class="moon"></div></div>
 <div id="hud">
-  <div id="fuelBarBg"><div id="fuelBarFill"></div></div>
+  <div id="fuelBarBg"><div id="fuelBarFill"></div><div id="fuelTankTicks"></div></div>
+  <div id="fuelTankText">3/3 tanques</div>
   <div id="progressBarBg"><div id="progressBarFill"></div></div>
   <div id="scoreText"></div>
   <div id="livesText"></div>
+  <button id="pauseButton" aria-label="Pausar jogo">Ⅱ</button>
   <div id="shipLabel">CAPIM-X</div>
   <div id="stageMsg"></div>
-  <div id="controlsText">← → desliza   ↑ acelera   ↓ reduz empuxo   SPACE atira   M muta</div>
+  <div id="controlsText">← → desliza   ↑ acelera   ↓ reduz empuxo   SPACE atira   P pausa   M muta</div>
 </div>
 <div id="introOverlay" class="overlay" style="display:block">
   <div class="crawl-viewport"><div class="crawl-text" id="crawlText"></div></div>
@@ -489,6 +523,26 @@
     <div class="shop-toast" id="shopToast"></div>
   </div>
 </div>
+<div id="pauseOverlay" class="overlay center-panel" style="display:none">
+  <div class="pause-panel">
+    <div class="pause-title">MISSÃO PAUSADA</div>
+    <div class="pause-copy">A Capim-X está em órbita de espera. Continue a rota ou abandone a tentativa atual.</div>
+    <div class="pause-actions">
+      <button class="btn btn-primary" id="btnResume"><span class="btn-icon">▶</span><span>Continuar</span></button>
+      <button class="btn btn-back" id="btnPauseMenu">Menu inicial</button>
+    </div>
+  </div>
+</div>
+<div id="confirmMenuOverlay" class="overlay center-panel" style="display:none">
+  <div class="pause-panel">
+    <div class="pause-title">ABANDONAR MISSÃO?</div>
+    <div class="pause-copy">Você perderá o progresso desta tentativa e não receberá Créditos Capim por ela.</div>
+    <div class="pause-actions">
+      <button class="btn btn-secondary" id="btnConfirmMenu">Sim, voltar</button>
+      <button class="btn btn-back" id="btnCancelMenu">Continuar missão</button>
+    </div>
+  </div>
+</div>
 <div id="gameOverOverlay" class="overlay center-panel" style="display:none">
   <div class="result-panel result-lose">
     <div class="result-icon">💥</div>
@@ -558,11 +612,14 @@ const DIFFICULTIES = {
 };
 
 const SAVE_KEY = 'capim-x-3d-progress-v1';
+const BASE_TANK_COUNT = 3;
+const FUEL_PER_TANK = 100;
+const FUEL_SCALE = BASE_TANK_COUNT;
 const DIFF_REWARD_MUL = { facil: 1, medio: 1.2, dificil: 1.45 };
 const UPGRADE_DEFS = {
   tank: {
     name:'Tanque Família', icon:'▣', max:3, costs:[80,150,260],
-    desc:l => `Combustível inicial: ${100 + l*15}.`
+    desc:l => `${BASE_TANK_COUNT + l} tanque${BASE_TANK_COUNT + l === 1 ? '' : 's'} cheio${BASE_TANK_COUNT + l === 1 ? '' : 's'} no lançamento.`
   },
   motor: {
     name:'Motor Eficiente', icon:'◈', max:3, costs:[90,170,290],
@@ -1272,7 +1329,8 @@ const bulletDroneGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6);
 const bulletDroneMat = new THREE.MeshBasicMaterial({ color:0xff4466 });
 
 // ---------- estado do jogo ----------
-let state = 'intro'; // intro | title | select | playing | landing | astronaut | gameover | win
+let state = 'intro'; // intro | title | select | launch | playing | paused | landing | astronaut | gameover | win
+let stateBeforeConfirm = null;
 let diff = DIFFICULTIES.medio;
 let fuel = 100, lives = 3, score = 0, distanceTravelled = 0, moonDistance = diff.moonDistance;
 let fuelMax = 100;
@@ -1349,8 +1407,8 @@ function economyEffects() {
   const cannon = upgradeLevel('cannon');
   const thruster = upgradeLevel('thruster');
   return {
-    fuelMax: 100 + tank*15,
-    fuelGain: 40 + tank*4,
+    fuelMax: (BASE_TANK_COUNT + tank) * FUEL_PER_TANK,
+    fuelGain: 1.2 * FUEL_PER_TANK,
     drainMul: 1 - motor*0.08,
     livesBonus: armor >= 3 ? 2 : (armor >= 1 ? 1 : 0),
     shotCostMul: 1 - cannon*0.12,
@@ -1802,6 +1860,8 @@ function handleCollisions() {
 
 // ---------- HUD ----------
 const fuelBarFill = document.getElementById('fuelBarFill');
+const fuelTankTicks = document.getElementById('fuelTankTicks');
+const fuelTankText = document.getElementById('fuelTankText');
 const progressBarFill = document.getElementById('progressBarFill');
 const scoreText = document.getElementById('scoreText');
 const livesText = document.getElementById('livesText');
@@ -1811,6 +1871,8 @@ const crawlText = document.getElementById('crawlText');
 const titleOverlay = document.getElementById('titleOverlay');
 const selectOverlay = document.getElementById('selectOverlay');
 const shopOverlay = document.getElementById('shopOverlay');
+const pauseOverlay = document.getElementById('pauseOverlay');
+const confirmMenuOverlay = document.getElementById('confirmMenuOverlay');
 const gameOverOverlay = document.getElementById('gameOverOverlay');
 const winOverlay = document.getElementById('winOverlay');
 const goReason = document.getElementById('goReason');
@@ -1822,6 +1884,7 @@ const winScore = document.getElementById('winScore');
 const winReward = document.getElementById('winReward');
 const stageMsgEl = document.getElementById('stageMsg');
 const progressBarBg = document.getElementById('progressBarBg');
+const pauseButton = document.getElementById('pauseButton');
 const titleCredits = document.getElementById('titleCredits');
 const titleBest = document.getElementById('titleBest');
 const selectCredits = document.getElementById('selectCredits');
@@ -1846,10 +1909,26 @@ function showStageMsg(text) {
   stageMsgTimer = setTimeout(() => stageMsgEl.style.opacity = '0', 2000);
 }
 
+let renderedTankCount = 0;
+function updateFuelTankTicks(tankCount) {
+  if (renderedTankCount === tankCount) return;
+  renderedTankCount = tankCount;
+  fuelTankTicks.innerHTML = '';
+  for (let i = 1; i < tankCount; i++) {
+    const tick = document.createElement('div');
+    tick.className = 'fuel-tick';
+    tick.style.left = (i/tankCount*100) + '%';
+    fuelTankTicks.appendChild(tick);
+  }
+}
+
 function updateHUD() {
-  const pct = fuel/fuelMax;
+  const tankCount = Math.max(1, Math.round(fuelMax/FUEL_PER_TANK));
+  updateFuelTankTicks(tankCount);
+  const pct = THREE.MathUtils.clamp(fuel/fuelMax, 0, 1);
   fuelBarFill.style.width = (pct*100)+'%';
   fuelBarFill.style.background = pct>0.5 ? '#33cc66' : (pct>0.2 ? '#ffcc33' : '#ff4444');
+  fuelTankText.textContent = (fuel/FUEL_PER_TANK).toFixed(1).replace('.', ',') + '/' + tankCount + ' tanques';
   const prog = THREE.MathUtils.clamp(distanceTravelled/(moonDistance||1500), 0, 1);
   progressBarFill.style.width = (prog*100)+'%';
   scoreText.textContent = 'Score: '+Math.floor(score);
@@ -1946,6 +2025,74 @@ function closeShop() {
   renderEconomyUI();
 }
 
+function clearInputState() {
+  Object.keys(keys).forEach(key => { keys[key] = false; });
+}
+
+function showPauseButton(show) {
+  pauseButton.style.display = show ? 'flex' : 'none';
+}
+
+function pauseGame() {
+  if (state !== 'playing') return;
+  state = 'paused';
+  clearInputState();
+  RadioChatter.stop();
+  pauseOverlay.style.display = 'flex';
+  showPauseButton(false);
+}
+
+function resumeGame() {
+  if (state !== 'paused') return;
+  state = 'playing';
+  clearInputState();
+  confirmMenuOverlay.style.display = 'none';
+  pauseOverlay.style.display = 'none';
+  showPauseButton(true);
+}
+
+function requestReturnToMenu() {
+  if (state !== 'paused') return;
+  stateBeforeConfirm = state;
+  pauseOverlay.style.display = 'none';
+  confirmMenuOverlay.style.display = 'flex';
+}
+
+function cancelReturnToMenu() {
+  confirmMenuOverlay.style.display = 'none';
+  if (stateBeforeConfirm === 'paused') {
+    pauseOverlay.style.display = 'flex';
+    state = 'paused';
+  }
+  stateBeforeConfirm = null;
+}
+
+function abandonMissionToTitle() {
+  confirmMenuOverlay.style.display = 'none';
+  pauseOverlay.style.display = 'none';
+  clearInputState();
+  RadioChatter.stop();
+  AudioSys.startTrack(AudioSys.menuTrack);
+  clearAllEntities();
+  ship.visible = false;
+  moon.visible = false;
+  removeFlag();
+  removeAstronaut();
+  runStats = null;
+  lastMissionReward = null;
+  stateBeforeConfirm = null;
+  state = 'title';
+  showPauseButton(false);
+  spaceScene.style.display = 'block';
+  introOverlay.style.display = 'none';
+  selectOverlay.style.display = 'none';
+  shopOverlay.style.display = 'none';
+  gameOverOverlay.style.display = 'none';
+  winOverlay.style.display = 'none';
+  titleOverlay.style.display = 'flex';
+  renderEconomyUI();
+}
+
 function formatRewardLines(lines) {
   return lines.map(line => `<div class="reward-line"><span>${line.label}</span><strong>+${line.value}</strong></div>`).join('');
 }
@@ -2036,11 +2183,10 @@ crawlText.innerHTML =
 
 // ---------- controle de estado ----------
 let lastDiffKey = 'medio';
-function startGame(diffKey) {
+function resetMissionState(diffKey) {
   diff = DIFFICULTIES[diffKey] || DIFFICULTIES.medio;
   lastDiffKey = DIFFICULTIES[diffKey] ? diffKey : 'medio';
   const econ = economyEffects();
-  state = 'playing';
   fuelMax = econ.fuelMax;
   fuel = fuelMax; lives = 3 + econ.livesBonus; score = 0; distanceTravelled = 0;
   scrollSpeed = SHIP_BASE.baseScroll;
@@ -2054,7 +2200,12 @@ function startGame(diffKey) {
   radioTimer = 0; radioNextSound = Math.random()*2 + 2;
   runStats = { meteors:0, drones:0, fuelCells:0, damageTaken:0, finished:false };
   lastMissionReward = null;
+  updateHUD();
+}
 
+function startGame(diffKey) {
+  resetMissionState(diffKey);
+  state = 'playing';
   clearAllEntities();
   nextSegmentZ = 0;
   for (let i=0;i<20;i++) { buildBeltSegment(nextSegmentZ); nextSegmentZ -= CORRIDOR.segmentLength; }
@@ -2073,16 +2224,19 @@ function startGame(diffKey) {
   titleOverlay.style.display = 'none';
   selectOverlay.style.display = 'none';
   shopOverlay.style.display = 'none';
+  pauseOverlay.style.display = 'none';
+  confirmMenuOverlay.style.display = 'none';
   gameOverOverlay.style.display = 'none';
   winOverlay.style.display = 'none';
   spaceScene.style.display = 'none';   // no jogo, a cena 3D aparece no lugar
-  updateHUD();
+  showPauseButton(true);
   AudioSys.startTrack(AudioSys.gameTrack);
 }
 
 function goToTitle() {
   if (state !== 'intro') return;
   state = 'title';
+  showPauseButton(false);
   introOverlay.style.display = 'none';
   titleOverlay.style.display = 'flex';
   renderEconomyUI();
@@ -2106,6 +2260,9 @@ function goBack() {
 function triggerGameOver(reason) {
   state = 'gameover';
   ship.visible = false;
+  showPauseButton(false);
+  pauseOverlay.style.display = 'none';
+  confirmMenuOverlay.style.display = 'none';
   RadioChatter.stop();
   AudioSys.gameOver();
   const reward = finishMission('lost');
@@ -2174,6 +2331,15 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   armAudio();
   if (e.code === 'KeyM') { AudioSys.toggleMute(); if (AudioSys.muted) RadioChatter.stop(); }
+  if (confirmMenuOverlay.style.display === 'flex') {
+    if (e.code === 'Escape') { uiBlip(420); cancelReturnToMenu(); }
+    else if (e.code === 'Enter') { uiBlip(520); abandonMissionToTitle(); }
+    return;
+  }
+  if (state === 'paused') {
+    if (e.code === 'Escape' || e.code === 'KeyP') { uiBlip(760); resumeGame(); }
+    return;
+  }
   if (shopOverlay.style.display === 'flex') {
     if (e.code === 'Escape' || e.code === 'KeyH') { uiBlip(420); closeShop(); }
     return;
@@ -2185,6 +2351,7 @@ addEventListener('keydown', e => {
   }
 
   if (state === 'intro') { if (!introStarted) beginIntro(); else goToTitle(); return; }
+  if (state === 'playing' && (e.code === 'Escape' || e.code === 'KeyP')) { uiBlip(620); pauseGame(); return; }
   if (state === 'title') {
     if (e.code==='KeyH') { uiBlip(740); openShop(); return; }
     if (e.code==='Enter' || e.code==='Space') goToSelect();
@@ -2216,6 +2383,11 @@ document.getElementById('btnNewGame').addEventListener('click', () => { armAudio
 document.getElementById('btnShop').addEventListener('click', () => { armAudio(); uiBlip(740); openShop(); });
 document.getElementById('btnShopFromSelect').addEventListener('click', () => { armAudio(); uiBlip(740); openShop(); });
 document.getElementById('btnCloseShop').addEventListener('click', () => { armAudio(); uiBlip(420); closeShop(); });
+pauseButton.addEventListener('click', () => { armAudio(); uiBlip(620); pauseGame(); });
+document.getElementById('btnResume').addEventListener('click', () => { armAudio(); uiBlip(760); resumeGame(); });
+document.getElementById('btnPauseMenu').addEventListener('click', () => { armAudio(); uiBlip(520); requestReturnToMenu(); });
+document.getElementById('btnConfirmMenu').addEventListener('click', () => { armAudio(); uiBlip(520); abandonMissionToTitle(); });
+document.getElementById('btnCancelMenu').addEventListener('click', () => { armAudio(); uiBlip(760); cancelReturnToMenu(); });
 document.getElementById('btnBack').addEventListener('click', () => { armAudio(); uiBlip(420); goBack(); });
 document.querySelectorAll('[data-diff]').forEach(b => {
   b.addEventListener('click', () => { armAudio(); uiBlip(900); startGame(b.dataset.diff); });
@@ -2338,6 +2510,7 @@ const LaunchSequence = {
 
   begin(diffKey) {
     this.diffKey = diffKey || 'medio';
+    resetMissionState(this.diffKey);
     this.ensureEarth();
     this.ensurePad();
     this.ensureCountdown();
@@ -2348,8 +2521,11 @@ const LaunchSequence = {
     selectOverlay.style.display = 'none';
     shopOverlay.style.display = 'none';
     gameOverOverlay.style.display = 'none';
-    winOverlay.style.display = 'none';
-    if (typeof spaceScene !== 'undefined' && spaceScene) spaceScene.style.display = 'none';  // some com o fundo do menu (senão ele cobre a cutscene)
+  winOverlay.style.display = 'none';
+  pauseOverlay.style.display = 'none';
+  confirmMenuOverlay.style.display = 'none';
+  showPauseButton(false);
+  if (typeof spaceScene !== 'undefined' && spaceScene) spaceScene.style.display = 'none';  // some com o fundo do menu (senão ele cobre a cutscene)
 
     segments.forEach(s => s.rocks.forEach(r => r.visible = false));  // some com o cinturão-prévia (o jogo reconstrói)
 
@@ -2651,6 +2827,9 @@ function finishAstronautSequence() {
   AudioSys.win();
   state='win';
   ship.visible=true;
+  showPauseButton(false);
+  pauseOverlay.style.display = 'none';
+  confirmMenuOverlay.style.display = 'none';
   const reward = finishMission('win');
   winDiff.textContent = diff.label;
   winScore.textContent = Math.floor(score);
@@ -2797,6 +2976,11 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
 
+  if (state === 'paused') {
+    renderer.render(scene, camera);
+    return;
+  }
+
   updateComet(dt); // roda em qualquer estado — o cometa também cruza o céu do menu
   updateImpactEffects(dt);
   if (state === 'landing') { updateLanding(dt); renderer.render(scene, camera); return; }
@@ -2835,7 +3019,7 @@ function animate() {
 
   let drain = (4 + (boosting?3:0) - (braking?2:0)) * diff.fuelDrainMul;
   drain = Math.max(drain, 1) * (0.55 + 0.45*massMul);  // mais leve = menos consumo
-  drain *= econ.drainMul;
+  drain *= econ.drainMul * FUEL_SCALE;
   fuel -= drain*dt;
   if (debugGod) fuel = fuelMax;   // debug: combustível infinito
 
@@ -2853,7 +3037,7 @@ function animate() {
   distanceTravelled = -ship.position.z;
 
   shootCd -= dt*1000;
-  const shotFuelCost = SHIP_BASE.shotFuelCost * econ.shotCostMul;
+  const shotFuelCost = SHIP_BASE.shotFuelCost * econ.shotCostMul * FUEL_SCALE;
   if (keys['Space'] && shootCd <= 0 && fuel > shotFuelCost) {
     spawnPlayerBullet();
     shootCd = SHIP_BASE.shootCooldown * econ.shootCooldownMul;
