@@ -2,11 +2,11 @@
 
 Jogo de nave em HTML/JS, feito com [Phaser 3](https://phaser.io/), em um único arquivo — sem build, sem dependências instaladas, sem assets externos (todos os sprites são desenhados via código).
 
-## Capim-x — Rocket to the Moon
+## Capim-X — Rocket to the Moon
 
 > Ano 2049. A Terra esgotou seu recurso mais precioso. A última reserva conhecida está na Lua. Dezenas de missões já tentaram chegar — nenhuma voltou.
 
-Pilote a Capim-x através do cinturão de meteoros e drones de defesa automatizados, atirando para abrir caminho (o que consome combustível) e coletando células de energia para chegar à Lua.
+Pilote a Capim-X através do cinturão de meteoros e drones de defesa automatizados, atirando para abrir caminho (o que consome combustível) e coletando células de energia para chegar à Lua.
 
 ## Como rodar
 
