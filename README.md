@@ -14,11 +14,17 @@ Um jogo baseado no River Raid do Atari onde o objetivo é chegar na Lua, desvian
 
 ## Capim-X — Rocket to the Moon
 
-Ano 2049. A Terra esgotou seu recurso mais precioso — o **Capim**. E a última reserva conhecida está na Lua.
+Ano 2049. A Terra perdeu a **esmaltita**, o mineral bruto do esmalte dos dentes,
+e com ela perdeu, literalmente, o sorriso. A última reserva conhecida está na
+Lua.
 
 Dezenas de missões já tentaram chegar lá. Nenhuma voltou. Os destroços dessas tentativas agora flutuam pelo caminho, misturados a um cinturão de meteoros que separa a Terra da sua última esperança verde.
 
-Você pilota o **Capim-X**, o último foguete que a humanidade conseguiu construir. Equipado com um canhão de pulso e um tanque de combustível limitado, cada tiro e cada manobra gastam energia. As células de combustível abandonadas pelas missões anteriores podem ser a diferença entre chegar ou virar mais um destroço no caminho de quem vier depois.
+Você pilota o **Capim-X**, o foguete que a Capim construiu para financiar a
+fonte do sorriso. Equipado com um canhão de mineração adaptado e um tanque de
+combustível limitado, cada tiro e cada manobra gastam energia. As células de
+combustível abandonadas pelas missões anteriores podem ser a diferença entre
+chegar ou virar mais um destroço no caminho de quem vier depois.
 
 O espaço não perdoa: a gravidade puxa e o foguete desliza, mas o comando de freio ajuda a conter o impulso. A Lua cresce lentamente no horizonte.
 
@@ -33,6 +39,10 @@ A missão é simples de explicar e difícil de cumprir: **atire, desvie, abaste�
    - **Uma loja / upgrades** — com esses créditos ele compra melhorias: motor mais forte, tanque maior, escudo contra detritos, um foguete diferente.
    - **Progressão que fica salva** — o que ele comprou continua lá na próxima vez. O jogo "lembra" do jogador.
    - **(Opcional) Um item premium** — algo que, num jogo real, você pagaria para ter. No desafio é fictício, só para mostrar o conceito de monetização.
+
+   No protótipo 3D, isso virou o **Hangar Capim-X**: Créditos Capim são ganhos ao
+   fim de cada missão, salvos no navegador e usados para comprar upgrades
+   persistentes de tanque, motor, blindagem, canhão e propulsor lateral.
 
 ## Como rodar
 

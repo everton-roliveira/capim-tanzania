@@ -158,11 +158,46 @@
   .menu {
     pointer-events:auto;
     display:flex; flex-direction:column; align-items:center;
-    padding:34px 40px 28px; min-width:340px;
+    padding:34px 40px 28px; min-width:340px; max-width:92vw;
     background:linear-gradient(160deg, rgba(16,22,44,0.72), rgba(6,9,22,0.82));
     border:1px solid rgba(120,170,255,0.28); border-radius:16px;
     box-shadow:0 0 60px rgba(60,110,220,0.18), inset 0 0 40px rgba(30,60,140,0.12);
     backdrop-filter:blur(3px);
+  }
+  .hangar-menu { width:430px; align-items:stretch; }
+  .title-logo, .title-tagline { text-align:center; }
+  .profile-strip {
+    display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 0 20px;
+  }
+  .profile-card {
+    min-height:56px; padding:10px 12px; border-radius:10px;
+    background:rgba(255,255,255,0.05); border:1px solid rgba(150,190,255,0.16);
+  }
+  .profile-label {
+    display:block; font-family:'Exo 2', sans-serif; font-size:10px; color:#8ca2c8;
+    letter-spacing:1.6px; text-transform:uppercase; margin-bottom:4px;
+  }
+  .profile-value {
+    display:block; font-family:'Orbitron', sans-serif; font-weight:700;
+    color:#f4fbff; font-size:18px; letter-spacing:1px;
+  }
+  .profile-value.accent { color:#b7ff72; text-shadow:0 0 12px rgba(170,255,90,0.35); }
+  .title-actions { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .title-actions .btn-primary { margin-top:0; justify-content:center; padding:15px 16px; font-size:14px; }
+  .btn-secondary {
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    padding:15px 16px; font-size:14px;
+    background:linear-gradient(160deg, rgba(72,120,76,0.30), rgba(18,70,48,0.45));
+    border-color:rgba(160,255,160,0.36);
+  }
+  .btn-secondary:hover { box-shadow:0 0 34px rgba(120,255,155,0.42); border-color:rgba(170,255,170,0.68); }
+  .select-meta {
+    display:flex; justify-content:space-between; align-items:center; gap:12px; width:340px;
+    margin:-6px 0 12px; font-family:'Exo 2', sans-serif; font-size:12px; color:#aebfe0;
+  }
+  .wallet-pill {
+    padding:7px 10px; border-radius:999px; background:rgba(183,255,114,0.08);
+    border:1px solid rgba(183,255,114,0.24); color:#d9ff9f;
   }
   .select-title {
     font-family:'Orbitron', sans-serif; font-weight:700;
@@ -236,12 +271,80 @@
     margin-top:14px; padding:9px 20px; font-size:12px; font-weight:500;
     color:#9fb2d6; background:transparent; border-color:rgba(120,150,200,0.3);
   }
+  .menu-row { display:flex; gap:10px; margin-top:14px; }
+  .menu-row .btn-back { margin-top:0; }
+
+  /* ---------- loja / hangar ---------- */
+  .shop-panel {
+    pointer-events:auto; width:760px; max-width:92vw; max-height:86vh; overflow:auto;
+    padding:24px; border-radius:18px;
+    background:linear-gradient(150deg, rgba(12,18,36,0.92), rgba(4,7,18,0.96));
+    border:1px solid rgba(130,180,255,0.28);
+    box-shadow:0 0 80px rgba(70,120,255,0.22), inset 0 0 44px rgba(30,80,150,0.12);
+    backdrop-filter:blur(5px);
+  }
+  .shop-head { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:16px; }
+  .shop-title {
+    font-family:'Orbitron', sans-serif; font-weight:900; font-size:25px; letter-spacing:3px;
+    color:#f7fbff; text-transform:uppercase; text-shadow:0 0 22px rgba(136,187,255,0.45);
+  }
+  .shop-subtitle { margin-top:6px; font-family:'Exo 2', sans-serif; color:#9fb2d6; font-size:13px; line-height:1.45; }
+  .shop-wallet {
+    flex:0 0 auto; padding:11px 14px; border-radius:12px; text-align:right;
+    background:rgba(183,255,114,0.08); border:1px solid rgba(183,255,114,0.24);
+  }
+  .shop-wallet span { display:block; font-family:'Exo 2', sans-serif; color:#9aae83; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; }
+  .shop-wallet strong { display:block; margin-top:2px; font-family:'Orbitron', sans-serif; color:#cfff8c; font-size:22px; }
+  .upgrade-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .upgrade-card {
+    display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center;
+    padding:14px; border-radius:12px; background:rgba(255,255,255,0.045);
+    border:1px solid rgba(255,255,255,0.11);
+  }
+  .upgrade-card.maxed { border-color:rgba(138,255,200,0.34); background:rgba(60,160,120,0.08); }
+  .upgrade-card.locked { opacity:0.76; border-style:dashed; }
+  .upgrade-icon {
+    width:42px; height:42px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+    background:rgba(140,180,255,0.10); border:1px solid rgba(160,200,255,0.18); font-size:24px;
+  }
+  .upgrade-name {
+    font-family:'Orbitron', sans-serif; font-weight:700; color:#f2f7ff; font-size:13px; letter-spacing:1.2px;
+  }
+  .upgrade-desc { margin-top:4px; font-family:'Exo 2', sans-serif; color:#a8b9d8; font-size:12px; line-height:1.35; }
+  .upgrade-level { margin-top:8px; display:flex; gap:5px; }
+  .level-dot {
+    width:18px; height:5px; border-radius:999px; background:rgba(255,255,255,0.12);
+  }
+  .level-dot.on { background:#9fd6c8; box-shadow:0 0 10px rgba(120,255,200,0.45); }
+  .upgrade-buy {
+    min-width:86px; padding:10px 9px; font-size:10px; letter-spacing:1px; border-radius:9px;
+  }
+  .upgrade-buy:disabled {
+    cursor:default; opacity:0.45; transform:none; box-shadow:none;
+  }
+  .shop-actions { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:18px; }
+  .shop-note { font-family:'Exo 2', sans-serif; color:#7f93b8; font-size:12px; line-height:1.4; }
+  .shop-toast {
+    min-height:18px; margin-top:12px; font-family:'Exo 2', sans-serif; color:#b7ff72;
+    font-size:12px; text-align:right;
+  }
+  @media (max-width:720px) {
+    .hangar-menu { width:min(430px, 86vw); }
+    .profile-strip, .title-actions, .upgrade-grid, .result-actions { grid-template-columns:1fr; }
+    .select-meta { width:min(340px, 78vw); flex-direction:column; align-items:stretch; text-align:center; }
+    .diff-btn { width:min(340px, 78vw); }
+    .shop-head { flex-direction:column; }
+    .shop-wallet { width:100%; text-align:left; box-sizing:border-box; }
+    .upgrade-card { grid-template-columns:auto 1fr; }
+    .upgrade-buy { grid-column:1 / -1; width:100%; }
+    .result-diffs { flex-wrap:wrap; justify-content:center; }
+  }
 
   /* ---------- popups de resultado (derrota / vitória) ---------- */
   .result-panel {
     pointer-events:auto;
     display:flex; flex-direction:column; align-items:center;
-    width:380px; max-width:88vw; padding:30px 36px 26px;
+    width:440px; max-width:88vw; padding:30px 36px 26px;
     border-radius:18px; text-align:center;
     background:linear-gradient(160deg, rgba(16,22,44,0.82), rgba(6,9,22,0.9));
     backdrop-filter:blur(4px);
@@ -279,6 +382,19 @@
     font-family:'Exo 2', sans-serif; font-style:italic; font-size:12px; color:#9fb2d6;
     margin-bottom:20px; max-width:300px; line-height:1.5;
   }
+  .reward-box {
+    width:100%; margin:-4px 0 18px; padding:12px 14px; border-radius:12px;
+    background:rgba(183,255,114,0.06); border:1px solid rgba(183,255,114,0.18);
+    font-family:'Exo 2', sans-serif; text-align:left;
+  }
+  .reward-total {
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    color:#d8ff9f; font-family:'Orbitron', sans-serif; font-weight:700; font-size:14px;
+  }
+  .reward-lines { margin-top:8px; display:grid; gap:4px; color:#9fb2d6; font-size:11px; }
+  .reward-line { display:flex; justify-content:space-between; gap:12px; }
+  .result-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%; }
+  .result-actions .btn-primary, .result-actions .btn-secondary { margin-top:0; padding:13px 10px; font-size:12px; }
   .result-diffs { display:flex; gap:8px; margin-top:12px; }
   .mini-diff {
     padding:8px 12px; font-size:11px; letter-spacing:1px; border-left-width:3px;
@@ -303,18 +419,37 @@
   <div class="skip-hint" id="skipHint" style="display:none">pressione qualquer tecla ou clique para pular</div>
 </div>
 <div id="titleOverlay" class="overlay center-panel" style="display:none">
-  <div class="menu">
+  <div class="menu hangar-menu">
     <div class="title-logo">CAPIM-X</div>
     <div class="title-tagline">ROCKET TO THE MOON</div>
-    <button class="btn btn-primary" id="btnNewGame">
-      <span class="btn-icon">🚀</span><span>NOVO JOGO</span>
-    </button>
-    <div class="menu-hint">ENTER ou clique</div>
+    <div class="profile-strip">
+      <div class="profile-card">
+        <span class="profile-label">Créditos Capim</span>
+        <span class="profile-value accent" id="titleCredits">0</span>
+      </div>
+      <div class="profile-card">
+        <span class="profile-label">Melhor missão</span>
+        <span class="profile-value" id="titleBest">0%</span>
+      </div>
+    </div>
+    <div class="title-actions">
+      <button class="btn btn-primary" id="btnNewGame">
+        <span class="btn-icon">▶</span><span>Jogar</span>
+      </button>
+      <button class="btn btn-secondary" id="btnShop">
+        <span class="btn-icon">⚙</span><span>Hangar</span>
+      </button>
+    </div>
+    <div class="menu-hint">ENTER joga · H abre hangar</div>
   </div>
 </div>
 <div id="selectOverlay" class="overlay center-panel" style="display:none">
   <div class="menu">
     <div class="select-title">ESCOLHA A DIFICULDADE</div>
+    <div class="select-meta">
+      <span class="wallet-pill"><span id="selectCredits">0</span> Créditos Capim</span>
+      <span id="selectUpgradeSummary">Nave padrão</span>
+    </div>
     <button class="btn diff-btn diff-facil" data-diff="facil">
       <span class="diff-key">1</span>
       <span class="diff-body"><span class="diff-name">FÁCIL</span><span class="diff-desc">Corredor largo · sem gravidade lateral</span></span>
@@ -327,8 +462,31 @@
       <span class="diff-key">3</span>
       <span class="diff-body"><span class="diff-name">DIFÍCIL</span><span class="diff-desc">Corredor estreito · gravidade forte</span></span>
     </button>
-    <button class="btn btn-back" id="btnBack">‹ VOLTAR</button>
+    <div class="menu-row">
+      <button class="btn btn-back" id="btnBack">‹ VOLTAR</button>
+      <button class="btn btn-back" id="btnShopFromSelect">HANGAR</button>
+    </div>
     <div class="menu-hint">1 / 2 / 3 ou clique</div>
+  </div>
+</div>
+<div id="shopOverlay" class="overlay center-panel" style="display:none">
+  <div class="shop-panel">
+    <div class="shop-head">
+      <div>
+        <div class="shop-title">Hangar Capim-X</div>
+        <div class="shop-subtitle">Use Créditos Capim para transformar cada tentativa em uma nave melhor. A missão aprende com os destroços.</div>
+      </div>
+      <div class="shop-wallet">
+        <span>Saldo</span>
+        <strong id="shopCredits">0</strong>
+      </div>
+    </div>
+    <div class="upgrade-grid" id="upgradeGrid"></div>
+    <div class="shop-actions">
+      <div class="shop-note">Upgrades ficam salvos neste navegador. Capim Prime Lunar é um item premium fictício, só para demonstrar monetização.</div>
+      <button class="btn btn-back" id="btnCloseShop">VOLTAR</button>
+    </div>
+    <div class="shop-toast" id="shopToast"></div>
   </div>
 </div>
 <div id="gameOverOverlay" class="overlay center-panel" style="display:none">
@@ -340,8 +498,12 @@
       <div class="stat"><span class="stat-value" id="goDist">0</span><span class="stat-label">Distância</span></div>
       <div class="stat"><span class="stat-value" id="goScore">0</span><span class="stat-label">Score</span></div>
     </div>
+    <div class="reward-box" id="goReward"></div>
     <div class="result-flavor">Mais um destroço no caminho de quem vier depois.</div>
-    <button class="btn btn-primary" id="goReplay"><span class="btn-icon">🔄</span><span>TENTAR DE NOVO</span></button>
+    <div class="result-actions">
+      <button class="btn btn-primary" id="goReplay"><span class="btn-icon">↻</span><span>Tentar de novo</span></button>
+      <button class="btn btn-secondary" id="goShop"><span class="btn-icon">⚙</span><span>Hangar</span></button>
+    </div>
     <div class="result-diffs">
       <button class="btn mini-diff diff-facil"   data-diff="facil">1 · FÁCIL</button>
       <button class="btn mini-diff diff-medio"   data-diff="medio">2 · MÉDIO</button>
@@ -358,8 +520,12 @@
       <div class="stat"><span class="stat-value" id="winDiff">—</span><span class="stat-label">Dificuldade</span></div>
       <div class="stat"><span class="stat-value" id="winScore">0</span><span class="stat-label">Score</span></div>
     </div>
+    <div class="reward-box" id="winReward"></div>
     <div class="result-flavor">A última reserva foi alcançada. A humanidade respira de novo.</div>
-    <button class="btn btn-primary" id="winReplay"><span class="btn-icon">🚀</span><span>JOGAR NOVAMENTE</span></button>
+    <div class="result-actions">
+      <button class="btn btn-primary" id="winReplay"><span class="btn-icon">▶</span><span>Jogar novamente</span></button>
+      <button class="btn btn-secondary" id="winShop"><span class="btn-icon">⚙</span><span>Hangar</span></button>
+    </div>
     <div class="result-diffs">
       <button class="btn mini-diff diff-facil"   data-diff="facil">1 · FÁCIL</button>
       <button class="btn mini-diff diff-medio"   data-diff="medio">2 · MÉDIO</button>
@@ -389,6 +555,35 @@ const DIFFICULTIES = {
   facil:   { label:'FÁCIL',   moonDistance:900,  corridorHalf:4.2, minHalf:3.4, maxHalf:5.0, fuelDrainMul:0.7, spawnMul:0.7, thrust:15, drag:11, maxSpeed:6.5, gravity:0   },
   medio:   { label:'MÉDIO',   moonDistance:1500, corridorHalf:3.6, minHalf:2.6, maxHalf:5.2, fuelDrainMul:1.0, spawnMul:1.0, thrust:16, drag:9,  maxSpeed:7,   gravity:0.9 },
   dificil: { label:'DIFÍCIL', moonDistance:2200, corridorHalf:3.0, minHalf:2.0, maxHalf:4.2, fuelDrainMul:1.3, spawnMul:1.4, thrust:15, drag:6,  maxSpeed:7.5, gravity:1.8 }
+};
+
+const SAVE_KEY = 'capim-x-3d-progress-v1';
+const DIFF_REWARD_MUL = { facil: 1, medio: 1.2, dificil: 1.45 };
+const UPGRADE_DEFS = {
+  tank: {
+    name:'Tanque Família', icon:'▣', max:3, costs:[80,150,260],
+    desc:l => `Combustível inicial: ${100 + l*15}.`
+  },
+  motor: {
+    name:'Motor Eficiente', icon:'◈', max:3, costs:[90,170,290],
+    desc:l => `Consumo geral reduzido em ${l*8}%.`
+  },
+  armor: {
+    name:'Cobertura Antimpacto', icon:'◆', max:3, costs:[120,220,360],
+    desc:l => `Vidas iniciais: ${3 + (l>=3 ? 2 : l>=1 ? 1 : 0)}.`
+  },
+  cannon: {
+    name:'Canhão Econômico', icon:'▸', max:3, costs:[70,140,240],
+    desc:l => `Tiro consome ${Math.round((1 - l*0.12)*100)}% de energia.`
+  },
+  thruster: {
+    name:'Propulsor Lateral', icon:'↔', max:3, costs:[85,160,280],
+    desc:l => `Controle lateral +${l*8}%.`
+  }
+};
+const PREMIUM_ITEM = {
+  name:'Capim Prime Lunar',
+  desc:'Pintura executiva e prioridade emocional no retorno do sorriso. Item premium fictício.'
 };
 
 const SHIP_BASE = {
@@ -1080,6 +1275,7 @@ const bulletDroneMat = new THREE.MeshBasicMaterial({ color:0xff4466 });
 let state = 'intro'; // intro | title | select | playing | landing | astronaut | gameover | win
 let diff = DIFFICULTIES.medio;
 let fuel = 100, lives = 3, score = 0, distanceTravelled = 0, moonDistance = diff.moonDistance;
+let fuelMax = 100;
 let scrollSpeed = SHIP_BASE.baseScroll;
 let vx = 0, shootCd = 0, gravityDir = 1;
 let invulnerable = false, invulnerableUntil = 0;
@@ -1098,6 +1294,77 @@ const fuelCells = [];
 const playerBullets = [];
 const droneBullets = [];
 const impactEffects = [];
+
+function createDefaultProgress() {
+  return {
+    credits: 0,
+    upgrades: { tank:0, motor:0, armor:0, cannon:0, thruster:0 },
+    stats: { bestDistancePct:0, bestScore:0, wins:{ facil:0, medio:0, dificil:0 }, missions:0 }
+  };
+}
+
+function sanitizeProgress(data) {
+  const base = createDefaultProgress();
+  if (!data || typeof data !== 'object') return base;
+  base.credits = Math.max(0, Number(data.credits) || 0);
+  Object.keys(base.upgrades).forEach(key => {
+    const max = UPGRADE_DEFS[key].max;
+    base.upgrades[key] = Math.min(max, Math.max(0, Number(data.upgrades?.[key]) || 0));
+  });
+  base.stats.bestDistancePct = Math.min(1, Math.max(0, Number(data.stats?.bestDistancePct) || 0));
+  base.stats.bestScore = Math.max(0, Number(data.stats?.bestScore) || 0);
+  base.stats.missions = Math.max(0, Number(data.stats?.missions) || 0);
+  Object.keys(base.stats.wins).forEach(key => {
+    base.stats.wins[key] = Math.max(0, Number(data.stats?.wins?.[key]) || 0);
+  });
+  return base;
+}
+
+function loadProgress() {
+  try {
+    return sanitizeProgress(JSON.parse(localStorage.getItem(SAVE_KEY)));
+  } catch (_) {
+    return createDefaultProgress();
+  }
+}
+
+let progress = loadProgress();
+let runStats = null;
+let lastMissionReward = null;
+
+function saveProgress() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(progress));
+  } catch (_) {}
+}
+
+function upgradeLevel(key) {
+  return progress.upgrades[key] || 0;
+}
+
+function economyEffects() {
+  const tank = upgradeLevel('tank');
+  const motor = upgradeLevel('motor');
+  const armor = upgradeLevel('armor');
+  const cannon = upgradeLevel('cannon');
+  const thruster = upgradeLevel('thruster');
+  return {
+    fuelMax: 100 + tank*15,
+    fuelGain: 40 + tank*4,
+    drainMul: 1 - motor*0.08,
+    livesBonus: armor >= 3 ? 2 : (armor >= 1 ? 1 : 0),
+    shotCostMul: 1 - cannon*0.12,
+    shootCooldownMul: 1 - cannon*0.08,
+    thrustMul: 1 + thruster*0.08,
+    dragMul: 1 + thruster*0.05,
+    maxSpeedMul: 1 + thruster*0.05
+  };
+}
+
+function upgradeSummary() {
+  const total = Object.values(progress.upgrades).reduce((sum, value) => sum + value, 0);
+  return total ? `${total} melhoria${total === 1 ? '' : 's'} instalada${total === 1 ? '' : 's'}` : 'Nave padrão';
+}
 
 // Exaustão em espaço de mundo: as partículas ficam para trás enquanto a nave avança.
 const EXHAUST_COUNT = 90;
@@ -1440,6 +1707,7 @@ function flashHit() {
 function damagePlayer() {
   if (invulnerable || state !== 'playing' || debugGod) return;
   lives--;
+  if (runStats) runStats.damageTaken++;
   spawnImpact(ship.position,1.35,0xffb45c);
   cameraShake = Math.max(cameraShake,0.55);
   AudioSys.explosion();
@@ -1463,6 +1731,7 @@ function handleCollisions() {
         spawnImpact(m.mesh.position,m.radius/0.55);
         scene.remove(b.mesh); playerBullets.splice(bi,1);
         scene.remove(m.mesh); meteors.splice(mi,1);
+        if (runStats) runStats.meteors++;
         score += 10; AudioSys.explosion();
         continue outer;
       }
@@ -1473,6 +1742,7 @@ function handleCollisions() {
         spawnImpact(d.mesh.position,1,0xff496c);
         scene.remove(b.mesh); playerBullets.splice(bi,1);
         scene.remove(d.mesh); drones.splice(di,1);
+        if (runStats) runStats.drones++;
         score += 25; AudioSys.explosion();
         continue outer;
       }
@@ -1504,7 +1774,9 @@ function handleCollisions() {
     const f = fuelCells[i];
     if (dist2(ship.position, f.mesh.position) < sq(shipR+0.4)) {
       scene.remove(f.mesh); fuelCells.splice(i,1);
-      fuel = Math.min(100, fuel+40); score += 15; AudioSys.pickup();
+      const econ = economyEffects();
+      if (runStats) runStats.fuelCells++;
+      fuel = Math.min(fuelMax, fuel+econ.fuelGain); score += 15; AudioSys.pickup();
     }
   }
 
@@ -1538,15 +1810,25 @@ const spaceScene = document.getElementById('spaceScene');
 const crawlText = document.getElementById('crawlText');
 const titleOverlay = document.getElementById('titleOverlay');
 const selectOverlay = document.getElementById('selectOverlay');
+const shopOverlay = document.getElementById('shopOverlay');
 const gameOverOverlay = document.getElementById('gameOverOverlay');
 const winOverlay = document.getElementById('winOverlay');
 const goReason = document.getElementById('goReason');
 const goDist = document.getElementById('goDist');
 const goScore = document.getElementById('goScore');
+const goReward = document.getElementById('goReward');
 const winDiff = document.getElementById('winDiff');
 const winScore = document.getElementById('winScore');
+const winReward = document.getElementById('winReward');
 const stageMsgEl = document.getElementById('stageMsg');
 const progressBarBg = document.getElementById('progressBarBg');
+const titleCredits = document.getElementById('titleCredits');
+const titleBest = document.getElementById('titleBest');
+const selectCredits = document.getElementById('selectCredits');
+const selectUpgradeSummary = document.getElementById('selectUpgradeSummary');
+const shopCredits = document.getElementById('shopCredits');
+const upgradeGrid = document.getElementById('upgradeGrid');
+const shopToast = document.getElementById('shopToast');
 
 // marcadores dos pontos de separação na barra de progresso
 STAGE_SEPARATIONS.forEach(s => {
@@ -1565,7 +1847,7 @@ function showStageMsg(text) {
 }
 
 function updateHUD() {
-  const pct = fuel/100;
+  const pct = fuel/fuelMax;
   fuelBarFill.style.width = (pct*100)+'%';
   fuelBarFill.style.background = pct>0.5 ? '#33cc66' : (pct>0.2 ? '#ffcc33' : '#ff4444');
   const prog = THREE.MathUtils.clamp(distanceTravelled/(moonDistance||1500), 0, 1);
@@ -1574,25 +1856,162 @@ function updateHUD() {
   livesText.textContent = 'Vidas: ' + '♥'.repeat(Math.max(lives,0));
 }
 
+function updateMenuStats() {
+  const bestPct = Math.round((progress.stats.bestDistancePct || 0)*100);
+  const creditsText = Math.floor(progress.credits).toString();
+  titleCredits.textContent = creditsText;
+  titleBest.textContent = bestPct + '%';
+  selectCredits.textContent = creditsText;
+  shopCredits.textContent = creditsText;
+  selectUpgradeSummary.textContent = upgradeSummary();
+}
+
+function renderUpgradeGrid() {
+  upgradeGrid.innerHTML = '';
+  Object.entries(UPGRADE_DEFS).forEach(([key, def]) => {
+    const level = upgradeLevel(key);
+    const maxed = level >= def.max;
+    const cost = maxed ? 0 : def.costs[level];
+    const card = document.createElement('div');
+    card.className = 'upgrade-card' + (maxed ? ' maxed' : '');
+    const dots = Array.from({length:def.max}, (_, i) => `<span class="level-dot ${i < level ? 'on' : ''}"></span>`).join('');
+    card.innerHTML =
+      `<div class="upgrade-icon">${def.icon}</div>`+
+      `<div><div class="upgrade-name">${def.name}</div>`+
+      `<div class="upgrade-desc">${def.desc(level)}</div>`+
+      `<div class="upgrade-level">${dots}</div></div>`+
+      `<button class="btn upgrade-buy" data-upgrade="${key}" ${maxed || progress.credits < cost ? 'disabled' : ''}>${maxed ? 'MAX' : cost + ' CC'}</button>`;
+    upgradeGrid.appendChild(card);
+  });
+
+  const premium = document.createElement('div');
+  premium.className = 'upgrade-card locked';
+  premium.innerHTML =
+    `<div class="upgrade-icon">★</div>`+
+    `<div><div class="upgrade-name">${PREMIUM_ITEM.name}</div>`+
+    `<div class="upgrade-desc">${PREMIUM_ITEM.desc}</div>`+
+    `<div class="upgrade-level"><span class="level-dot"></span><span class="level-dot"></span><span class="level-dot"></span></div></div>`+
+    `<button class="btn upgrade-buy" disabled>FICTÍCIO</button>`;
+  upgradeGrid.appendChild(premium);
+}
+
+function renderEconomyUI() {
+  updateMenuStats();
+  renderUpgradeGrid();
+}
+
+function setShopToast(text) {
+  shopToast.textContent = text;
+  if (!text) return;
+  clearTimeout(setShopToast.timer);
+  setShopToast.timer = setTimeout(() => { shopToast.textContent = ''; }, 1800);
+}
+
+function buyUpgrade(key) {
+  const def = UPGRADE_DEFS[key];
+  if (!def) return;
+  const level = upgradeLevel(key);
+  if (level >= def.max) return;
+  const cost = def.costs[level];
+  if (progress.credits < cost) {
+    setShopToast('Créditos insuficientes para essa melhoria.');
+    return;
+  }
+  progress.credits -= cost;
+  progress.upgrades[key] = level + 1;
+  saveProgress();
+  renderEconomyUI();
+  setShopToast(`${def.name} instalado no nível ${level + 1}.`);
+  uiBlip(980);
+}
+
+function openShop() {
+  titleOverlay.style.display = 'none';
+  selectOverlay.style.display = 'none';
+  gameOverOverlay.style.display = 'none';
+  winOverlay.style.display = 'none';
+  shopOverlay.style.display = 'flex';
+  renderEconomyUI();
+}
+
+function closeShop() {
+  shopOverlay.style.display = 'none';
+  if (state === 'select') selectOverlay.style.display = 'flex';
+  else if (state === 'gameover') gameOverOverlay.style.display = 'flex';
+  else if (state === 'win') winOverlay.style.display = 'flex';
+  else {
+    state = 'title';
+    titleOverlay.style.display = 'flex';
+  }
+  renderEconomyUI();
+}
+
+function formatRewardLines(lines) {
+  return lines.map(line => `<div class="reward-line"><span>${line.label}</span><strong>+${line.value}</strong></div>`).join('');
+}
+
+function renderReward(el, reward) {
+  if (!reward) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML =
+    `<div class="reward-total"><span>Créditos recuperados</span><strong>+${reward.total}</strong></div>`+
+    `<div class="reward-lines">${formatRewardLines(reward.lines)}</div>`;
+}
+
+function finishMission(outcome) {
+  if (!runStats || runStats.finished) return lastMissionReward;
+  runStats.finished = true;
+  const pct = THREE.MathUtils.clamp(distanceTravelled/(moonDistance||diff.moonDistance), 0, 1);
+  const diffKey = lastDiffKey;
+  const baseDistance = Math.floor(pct*70);
+  const lines = [
+    { label:'Distância da missão', value:baseDistance },
+    { label:'Drones neutralizados', value:runStats.drones*8 },
+    { label:'Meteoros abertos', value:runStats.meteors*3 },
+    { label:'Tanques recuperados', value:runStats.fuelCells*5 }
+  ];
+  if (outcome === 'win') lines.push({ label:'Pouso na Lua', value:100 });
+  const fuelBonus = Math.floor((fuel/fuelMax)*20);
+  if (fuelBonus > 0) lines.push({ label:'Eficiência de combustível', value:fuelBonus });
+  const raw = lines.reduce((sum, line) => sum + line.value, 0);
+  const multiplier = DIFF_REWARD_MUL[diffKey] || 1;
+  const total = Math.max(8, Math.floor(raw*multiplier));
+  progress.credits += total;
+  progress.stats.missions++;
+  progress.stats.bestDistancePct = Math.max(progress.stats.bestDistancePct, pct);
+  progress.stats.bestScore = Math.max(progress.stats.bestScore, Math.floor(score));
+  if (outcome === 'win') progress.stats.wins[diffKey] = (progress.stats.wins[diffKey] || 0) + 1;
+  saveProgress();
+  lastMissionReward = {
+    total,
+    lines: [...lines, { label:`Multiplicador ${diff.label}`, value: Math.max(0, total - raw) }]
+      .filter(line => line.value > 0)
+  };
+  renderEconomyUI();
+  return lastMissionReward;
+}
+
 // ---------- narrativa (idêntica ao jogo 2D) ----------
 crawlText.innerHTML =
   '<span class="crawl-title">CAPIM-X</span>\n\n\n'+
   '2049.\n\n\n'+
-  'A Terra esgotou seu recurso mais precioso.\n'+
-  'A última reserva conhecida está na Lua. Dezenas\n'+
-  'de missões já tentaram chegar — nenhuma voltou.\n\n'+
-  'Seus destroços viraram parte do cinturão de\n'+
-  'meteoros: módulos, bocais e painéis partidos\n'+
-  'ainda cruzam a rota, à deriva no espaço. Alguns\n'+
-  'módulos armados ainda têm energia e disparam.\n\n'+
-  'A Capim-x carrega um canhão de mineração\n'+
-  'adaptado: abre caminho pelos meteoros e destroços.\n'+
-  'Não é uma nave de guerra — cada disparo\n'+
-  'consome combustível, o mesmo que decide se você\n'+
-  'chega ou vira mais um destroço.\n\n'+
-  'Sem freio: a nave desliza, a gravidade puxa,\n'+
-  'e a Lua cresce no horizonte.\n\n'+
-  '<span class="crawl-final">Desvie.<br>Atire.<br>Abasteça.<br>Chegue.</span>';
+  'A humanidade automatizou tudo — menos o desastre\n'+
+  'que não viu chegar: a esmaltita acabou.\n\n'+
+  'Sem o mineral bruto do esmalte, nenhum dente se\n'+
+  'forma, nenhum se recupera. Chamaram de Grande\n'+
+  'Cárie. O planeta perdeu, literalmente, o sorriso.\n\n'+
+  'A última reserva está na Lua. Quase toda startup\n'+
+  'com foguete tentou chegar lá. Quase toda explodiu.\n'+
+  'O caminho virou um cemitério de carcaças, tanques\n'+
+  'vazando e drones de mineração que enlouqueceram.\n\n'+
+  'A Capim financiou o sorriso por anos. Agora vai\n'+
+  'financiar a fonte dele.\n\n'+
+  'Reabasteça nos tanques de quem falhou. Recupere\n'+
+  'créditos, peças e dados. Cada tentativa deixa a\n'+
+  'Capim-X mais perto de trazer o sorriso de volta.\n\n'+
+  '<span class="crawl-final">Desvie.<br>Atire.<br>Abasteça.<br>Pouse.</span>';
 
 // ---------- campo de estrelas do overlay de introdução ----------
 (function buildStarfield() {
@@ -1620,8 +2039,10 @@ let lastDiffKey = 'medio';
 function startGame(diffKey) {
   diff = DIFFICULTIES[diffKey] || DIFFICULTIES.medio;
   lastDiffKey = DIFFICULTIES[diffKey] ? diffKey : 'medio';
+  const econ = economyEffects();
   state = 'playing';
-  fuel = 100; lives = 3; score = 0; distanceTravelled = 0;
+  fuelMax = econ.fuelMax;
+  fuel = fuelMax; lives = 3 + econ.livesBonus; score = 0; distanceTravelled = 0;
   scrollSpeed = SHIP_BASE.baseScroll;
   corridorCenter = 0; corridorHalf = diff.corridorHalf;
   meteorCd = 3; droneCd = 7; fuelCd = 8;
@@ -1631,6 +2052,8 @@ function startGame(diffKey) {
   gravityDir = Math.random() < 0.5 ? 1 : -1;
   moonDistance = diff.moonDistance;
   radioTimer = 0; radioNextSound = Math.random()*2 + 2;
+  runStats = { meteors:0, drones:0, fuelCells:0, damageTaken:0, finished:false };
+  lastMissionReward = null;
 
   clearAllEntities();
   nextSegmentZ = 0;
@@ -1649,6 +2072,7 @@ function startGame(diffKey) {
   introOverlay.style.display = 'none';
   titleOverlay.style.display = 'none';
   selectOverlay.style.display = 'none';
+  shopOverlay.style.display = 'none';
   gameOverOverlay.style.display = 'none';
   winOverlay.style.display = 'none';
   spaceScene.style.display = 'none';   // no jogo, a cena 3D aparece no lugar
@@ -1661,6 +2085,7 @@ function goToTitle() {
   state = 'title';
   introOverlay.style.display = 'none';
   titleOverlay.style.display = 'flex';
+  renderEconomyUI();
 }
 
 function goToSelect() {
@@ -1668,6 +2093,7 @@ function goToSelect() {
   state = 'select';
   titleOverlay.style.display = 'none';
   selectOverlay.style.display = 'flex';
+  renderEconomyUI();
 }
 
 function goBack() {
@@ -1682,9 +2108,11 @@ function triggerGameOver(reason) {
   ship.visible = false;
   RadioChatter.stop();
   AudioSys.gameOver();
+  const reward = finishMission('lost');
   goReason.textContent = reason;
   goDist.textContent = Math.floor(distanceTravelled);
   goScore.textContent = Math.floor(score);
+  renderReward(goReward, reward);
   gameOverOverlay.style.display = 'flex';
 }
 
@@ -1746,6 +2174,10 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   armAudio();
   if (e.code === 'KeyM') { AudioSys.toggleMute(); if (AudioSys.muted) RadioChatter.stop(); }
+  if (shopOverlay.style.display === 'flex') {
+    if (e.code === 'Escape' || e.code === 'KeyH') { uiBlip(420); closeShop(); }
+    return;
+  }
 
   if (DEBUG) {
     if (e.code === 'KeyL') { debugToEnding(); return; }
@@ -1753,8 +2185,15 @@ addEventListener('keydown', e => {
   }
 
   if (state === 'intro') { if (!introStarted) beginIntro(); else goToTitle(); return; }
-  if (state === 'title') { if (e.code==='Enter' || e.code==='Space') goToSelect(); return; }
+  if (state === 'title') {
+    if (e.code==='KeyH') { uiBlip(740); openShop(); return; }
+    if (e.code==='Enter' || e.code==='Space') goToSelect();
+    return;
+  }
   if (state === 'select' && e.code === 'Escape') { goBack(); return; }
+  if ((state === 'select' || state === 'gameover' || state === 'win') && e.code === 'KeyH') {
+    uiBlip(740); openShop(); return;
+  }
   if (state==='select' || state==='gameover' || state==='win') {
     if (e.code==='Digit1') startGame('facil');
     else if (e.code==='Digit2') startGame('medio');
@@ -1774,12 +2213,24 @@ function uiBlip(freq) {
   AudioSys.blip(AudioSys.ctx.currentTime, freq, 0.09, 'triangle', AudioSys.sfxGain, 0.14, freq*1.5);
 }
 document.getElementById('btnNewGame').addEventListener('click', () => { armAudio(); uiBlip(720); goToSelect(); });
+document.getElementById('btnShop').addEventListener('click', () => { armAudio(); uiBlip(740); openShop(); });
+document.getElementById('btnShopFromSelect').addEventListener('click', () => { armAudio(); uiBlip(740); openShop(); });
+document.getElementById('btnCloseShop').addEventListener('click', () => { armAudio(); uiBlip(420); closeShop(); });
 document.getElementById('btnBack').addEventListener('click', () => { armAudio(); uiBlip(420); goBack(); });
 document.querySelectorAll('[data-diff]').forEach(b => {
   b.addEventListener('click', () => { armAudio(); uiBlip(900); startGame(b.dataset.diff); });
 });
 document.getElementById('goReplay').addEventListener('click', () => { armAudio(); uiBlip(760); startGame(lastDiffKey); });
 document.getElementById('winReplay').addEventListener('click', () => { armAudio(); uiBlip(820); startGame(lastDiffKey); });
+document.getElementById('goShop').addEventListener('click', () => { armAudio(); uiBlip(740); openShop(); });
+document.getElementById('winShop').addEventListener('click', () => { armAudio(); uiBlip(740); openShop(); });
+upgradeGrid.addEventListener('click', e => {
+  const btn = e.target.closest('[data-upgrade]');
+  if (!btn) return;
+  armAudio();
+  buyUpgrade(btn.dataset.upgrade);
+});
+renderEconomyUI();
 
 // ---------- câmera em terceira pessoa ----------
 const camOffset = new THREE.Vector3(0, 7.5, 9.5);
@@ -1895,6 +2346,7 @@ const LaunchSequence = {
     introOverlay.style.display = 'none';
     titleOverlay.style.display = 'none';
     selectOverlay.style.display = 'none';
+    shopOverlay.style.display = 'none';
     gameOverOverlay.style.display = 'none';
     winOverlay.style.display = 'none';
     if (typeof spaceScene !== 'undefined' && spaceScene) spaceScene.style.display = 'none';  // some com o fundo do menu (senão ele cobre a cutscene)
@@ -2199,8 +2651,10 @@ function finishAstronautSequence() {
   AudioSys.win();
   state='win';
   ship.visible=true;
+  const reward = finishMission('win');
   winDiff.textContent = diff.label;
   winScore.textContent = Math.floor(score);
+  renderReward(winReward, reward);
   winOverlay.style.display='flex';
 }
 
@@ -2365,6 +2819,7 @@ function animate() {
   }
 
   const difficultyT = THREE.MathUtils.clamp(distanceTravelled/moonDistance, 0, 1);
+  const econ = economyEffects();
 
   // separação de estágios nos marcos de progresso
   while (nextSeparation < STAGE_SEPARATIONS.length && difficultyT >= STAGE_SEPARATIONS[nextSeparation].at) {
@@ -2380,15 +2835,16 @@ function animate() {
 
   let drain = (4 + (boosting?3:0) - (braking?2:0)) * diff.fuelDrainMul;
   drain = Math.max(drain, 1) * (0.55 + 0.45*massMul);  // mais leve = menos consumo
+  drain *= econ.drainMul;
   fuel -= drain*dt;
-  if (debugGod) fuel = 100;   // debug: combustível infinito
+  if (debugGod) fuel = fuelMax;   // debug: combustível infinito
 
-  const effMaxSpeed = diff.maxSpeed * (1 + (1-massMul)*0.5);
-  if (keys['ArrowLeft'])  vx -= (diff.thrust/massMul)*dt;
-  if (keys['ArrowRight']) vx += (diff.thrust/massMul)*dt;
+  const effMaxSpeed = diff.maxSpeed * econ.maxSpeedMul * (1 + (1-massMul)*0.5);
+  if (keys['ArrowLeft'])  vx -= (diff.thrust*econ.thrustMul/massMul)*dt;
+  if (keys['ArrowRight']) vx += (diff.thrust*econ.thrustMul/massMul)*dt;
   vx += gravityDir*diff.gravity*dt;
-  if (vx > 0) vx = Math.max(0, vx - diff.drag*dt);
-  else if (vx < 0) vx = Math.min(0, vx + diff.drag*dt);
+  if (vx > 0) vx = Math.max(0, vx - diff.drag*econ.dragMul*dt);
+  else if (vx < 0) vx = Math.min(0, vx + diff.drag*econ.dragMul*dt);
   vx = THREE.MathUtils.clamp(vx, -effMaxSpeed, effMaxSpeed);
 
   ship.position.x += vx*dt;
@@ -2397,10 +2853,11 @@ function animate() {
   distanceTravelled = -ship.position.z;
 
   shootCd -= dt*1000;
-  if (keys['Space'] && shootCd <= 0 && fuel > 0.5) {
+  const shotFuelCost = SHIP_BASE.shotFuelCost * econ.shotCostMul;
+  if (keys['Space'] && shootCd <= 0 && fuel > shotFuelCost) {
     spawnPlayerBullet();
-    shootCd = SHIP_BASE.shootCooldown;
-    fuel -= SHIP_BASE.shotFuelCost;
+    shootCd = SHIP_BASE.shootCooldown * econ.shootCooldownMul;
+    fuel -= shotFuelCost;
     AudioSys.shoot();
   }
 
