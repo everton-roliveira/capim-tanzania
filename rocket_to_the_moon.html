@@ -175,9 +175,28 @@ const AudioSys = {
   gameOver(){ if (!this.ctx) return; this.stopMusic(); const t=this.ctx.currentTime;
               [57,53,50,45].forEach((m,i)=> this.blip(t+i*0.22, this.mtof(m), 0.42, 'sawtooth', this.sfxGain, 0.24));
               this.blip(t+0.9, this.mtof(33), 1.3, 'sine', this.sfxGain, 0.30); },
-  win()     { if (!this.ctx) return; this.stopMusic(); const t=this.ctx.currentTime;
-              [60,64,67,72,76].forEach((m,i)=> this.blip(t+i*0.13, this.mtof(m), 0.34, 'square', this.sfxGain, 0.22));
-              [60,64,67,72].forEach(m => this.blip(t+0.66, this.mtof(m), 1.5, 'triangle', this.sfxGain, 0.16)); }
+  // tema de conquista: fanfarra + melodia triunfante em Dó maior + acorde final
+  win() {
+    if (!this.ctx) return;
+    this.stopMusic();
+    const t = this.ctx.currentTime + 0.05;
+    const M = this.sfxGain;
+    // fanfarra de abertura (brilhante, ascendente)
+    [[0.00,67,0.14],[0.12,72,0.14],[0.24,76,0.14],[0.36,79,0.36]]
+      .forEach(([o,n,d]) => this.blip(t+o, this.mtof(n), d, 'square', M, 0.20));
+    // pads: progressão triunfante C - G - Am - F - C
+    const pad = (o,ch,d) => ch.forEach(n => this.blip(t+o, this.mtof(n), d, 'sine', M, 0.05));
+    pad(0.8, CH.C, 1.2); pad(2.0, CH.G, 1.2); pad(3.2, CH.Am, 1.2); pad(4.4, CH.F, 1.2);
+    [60,64,67,72].forEach(n => this.blip(t+5.6, this.mtof(n), 2.2, 'sine', M, 0.06)); // acorde final
+    // baixo grave nas trocas de acorde
+    [[0.8,36],[2.0,31],[3.2,33],[4.4,29],[5.6,36]].forEach(([o,n]) => this.blip(t+o, this.mtof(n), 1.1, 'triangle', M, 0.12));
+    // melodia triunfante por cima
+    [[0.8,72,0.5],[1.3,74,0.3],[1.6,76,0.7],[2.4,79,0.7],[3.2,77,0.5],
+     [3.7,76,0.5],[4.4,74,0.4],[4.8,72,0.4],[5.6,84,1.8]]
+      .forEach(([o,n,d]) => this.blip(t+o, this.mtof(n), d, 'triangle', M, 0.18));
+    // "prato" de vitória no acorde final
+    this.noise(t+5.6, 1.2, 0.10, 6000);
+  }
 };
 
 class MainScene extends Phaser.Scene {
@@ -342,11 +361,13 @@ class MainScene extends Phaser.Scene {
     g.fillStyle(0x3a2340,1); g.fillRect(0,0,32,3); g.fillRect(0,29,32,3);
     g.generateTexture('wall',32,32);
 
-    // Célula de combustível abandonada
+    // Célula de combustível abandonada — galão verde reluzente, com bico no canto
     g.clear();
-    g.fillStyle(0x226644,1); g.fillRoundedRect(6,0,20,32,6);
-    g.fillStyle(0x33cc88,1); g.fillRoundedRect(9,4,14,10,4);
-    g.fillStyle(0xaaffdd,1); g.fillRect(13,16,6,10);
+    g.fillStyle(0x0d5c2c,1); g.fillRoundedRect(5,7,22,23,3);   // contorno escuro do galão
+    g.fillStyle(0x00ff00,1); g.fillRoundedRect(7,9,18,19,3);   // corpo verde
+    g.fillStyle(0x0d5c2c,1); g.fillRect(19,2,7,7);             // bico no canto
+    g.fillStyle(0x00ff00,1); g.fillRect(20,3,5,5);
+    g.fillStyle(0xd6ffe4,1); g.fillRect(9,11,3,12);            // brilho (reluzente)
     g.generateTexture('fuelcell',32,32);
 
     // Balas
@@ -489,7 +510,7 @@ class MainScene extends Phaser.Scene {
   }
 
   spawnFuelCell(x,y) {
-    this.fuelCellGroup.create(x,y,'fuelcell');
+    this.fuelCellGroup.create(x,y,'fuelcell').setScale(1.5);
   }
 
   fireDroneBullet(drone) {

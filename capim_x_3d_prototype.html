@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>Capim-x 3D — Rocket to the Moon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Exo+2:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
   html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#03030a; font-family:monospace; }
@@ -44,41 +47,200 @@
   #winOverlay .panel      { color:#88ffcc; }
 
   #introOverlay { overflow:hidden; }
-  .crawl-viewport {
-    position:absolute; inset:0; overflow:hidden;
-    perspective:350px; perspective-origin:50% 100%;
+  /* fundo espacial PERSISTENTE (mesmo na intro e no menu): nebulosa + estrelas + lua + Terra.
+     z-index 1 = acima do canvas 3D, abaixo dos overlays (10) e do HUD (4). */
+  .space-scene {
+    position:fixed; inset:0; z-index:1; overflow:hidden; pointer-events:none;
+    background:
+      radial-gradient(ellipse at 72% 22%, rgba(70,100,180,0.20), transparent 55%),
+      radial-gradient(ellipse at 18% 82%, rgba(130,60,150,0.16), transparent 52%),
+      radial-gradient(ellipse at 50% 50%, #060814 0%, #02030a 70%, #010109 100%);
   }
+  .star {
+    position:absolute; border-radius:50%; background:#fff;
+    animation:twinkle var(--dur,3s) ease-in-out var(--delay,0s) infinite;
+  }
+  @keyframes twinkle {
+    0%,100% { opacity:0.15; transform:scale(0.7); }
+    50%     { opacity:1;    transform:scale(1.1); }
+  }
+  .moon {
+    position:absolute; top:7%; right:8%;
+    width:86px; height:86px; border-radius:50%;
+    background:radial-gradient(circle at 38% 34%, #fdfdf5 0%, #d9dce6 42%, #9aa0b4 78%, #6d7286 100%);
+    box-shadow:
+      0 0 34px 6px rgba(200,215,255,0.30),
+      inset -10px -7px 18px rgba(0,0,0,0.35);
+  }
+  /* crateras sutis */
+  .moon::before, .moon::after {
+    content:''; position:absolute; border-radius:50%;
+    background:rgba(90,95,115,0.35); box-shadow:inset 1px 1px 3px rgba(0,0,0,0.3);
+  }
+  .moon::before { width:15px; height:15px; top:30%; left:26%; }
+  .moon::after  { width:9px; height:9px; top:58%; left:56%;
+    box-shadow:inset 1px 1px 3px rgba(0,0,0,0.3), -20px -8px 0 -2px rgba(90,95,115,0.3); }
+  /* a Terra, pequena e azul, no canto inferior esquerdo */
+  .earth {
+    position:absolute; bottom:9%; left:7%;
+    width:58px; height:58px; border-radius:50%;
+    background:
+      radial-gradient(circle at 32% 28%, rgba(255,255,255,0.35) 0%, transparent 22%),
+      radial-gradient(circle at 62% 66%, #2f7d3a 0%, transparent 30%),
+      radial-gradient(circle at 30% 62%, #2f7d3a 0%, transparent 26%),
+      radial-gradient(circle at 50% 45%, #2f6fd6 0%, #1a4fa0 70%, #0d2f6b 100%);
+    box-shadow:
+      0 0 26px 5px rgba(80,140,255,0.35),
+      inset -8px -6px 16px rgba(0,0,0,0.45);
+  }
+  .crawl-viewport {
+    position:absolute; inset:0; overflow:hidden; z-index:2;
+  }
+  /* leve fade no topo e na base para o texto aparecer/sumir suave */
   .crawl-viewport::after {
-    content:''; position:absolute; inset:0; pointer-events:none;
-    background:linear-gradient(to bottom, #03030a 0%, transparent 22%, transparent 100%);
+    content:''; position:absolute; inset:0; pointer-events:none; z-index:3;
+    background:linear-gradient(to bottom,
+      rgba(2,3,10,0.55) 0%, transparent 24%, transparent 78%, rgba(2,3,10,0.92) 100%);
   }
   .crawl-text {
     position:absolute; top:100%; left:50%;
-    width:620px; max-width:78%;
-    transform:translateX(-50%) rotateX(35deg);
-    transform-origin:50% 100%;
-    color:#eaf2ff; text-align:center; white-space:pre-line;
-    font-size:22px; line-height:2;
-    animation:crawl 38s linear forwards;
+    width:680px; max-width:82%;
+    transform:translateX(-50%);
+    color:#ffe81f; font-weight:600; text-align:center; white-space:pre-line;
+    font-family:'Exo 2', sans-serif; text-transform:uppercase;
+    font-size:24px; line-height:1.9; letter-spacing:0.5px;
+    text-shadow:0 0 14px rgba(255,232,31,0.35);
+    animation:crawl 40s linear forwards;
+    animation-play-state:paused;   /* só corre após o 1º gesto (permite áudio) */
   }
   @keyframes crawl {
     0%   { top:100%; }
-    100% { top:-760%; }
+    100% { top:-180%; }
+  }
+  /* título CAPIM-X no crawl — grande e imponente */
+  .crawl-title {
+    display:inline-block;
+    font-family:'Orbitron', sans-serif; font-weight:900;
+    font-size:64px; letter-spacing:10px; line-height:1.1;
+    color:#fff; text-shadow:0 0 26px rgba(136,187,255,0.55), 0 0 8px rgba(255,255,255,0.4);
+  }
+  /* palavras finais — discretas, sem exagero de brilho */
+  .crawl-final {
+    display:inline-block; margin-top:10px;
+    font-family:'Orbitron', sans-serif; font-weight:700;
+    font-size:26px; letter-spacing:3px; line-height:1.5; text-transform:uppercase;
+    color:#ffe81f; text-shadow:0 0 8px rgba(255,232,31,0.4);
   }
   .skip-hint {
     position:absolute; left:0; right:0; bottom:18px; text-align:center;
     color:#889; font-size:11px; letter-spacing:0.5px;
   }
-  .title-logo { font-size:44px; letter-spacing:6px; color:#fff; margin-bottom:10px; }
-  .title-tagline { font-size:13px; color:#9fd6c8; margin-bottom:30px; letter-spacing:1px; }
-  .title-prompt { font-size:14px; color:#fff; animation:blink 1.4s steps(1) infinite; }
+  .intro-start {
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:4;
+    text-align:center; white-space:nowrap;
+    font-family:'Orbitron', sans-serif; font-weight:500;
+    color:#cfe3ff; font-size:15px; letter-spacing:3px;
+    text-shadow:0 0 16px rgba(136,187,255,0.6);
+    animation:blink 1.6s steps(1) infinite;
+  }
+  .title-logo {
+    font-family:'Orbitron', sans-serif; font-weight:900;
+    font-size:52px; letter-spacing:8px; color:#fff; margin-bottom:14px;
+    text-shadow:0 0 24px rgba(136,187,255,0.6), 0 0 6px rgba(255,255,255,0.5);
+  }
+  .title-tagline {
+    font-family:'Orbitron', sans-serif; font-weight:500;
+    font-size:14px; color:#9fd6c8; margin-bottom:30px; letter-spacing:4px; text-transform:uppercase;
+  }
   @keyframes blink { 50% { opacity:0.25; } }
-  .select-title { font-size:15px; color:#fff; margin-bottom:18px; letter-spacing:1px; }
-  .select-option { font-size:13px; color:#cfe; margin:6px 0; }
+
+  /* ---------- menu temático (título + seleção) ---------- */
+  .menu {
+    pointer-events:auto;
+    display:flex; flex-direction:column; align-items:center;
+    padding:34px 40px 28px; min-width:340px;
+    background:linear-gradient(160deg, rgba(16,22,44,0.72), rgba(6,9,22,0.82));
+    border:1px solid rgba(120,170,255,0.28); border-radius:16px;
+    box-shadow:0 0 60px rgba(60,110,220,0.18), inset 0 0 40px rgba(30,60,140,0.12);
+    backdrop-filter:blur(3px);
+  }
+  .select-title {
+    font-family:'Orbitron', sans-serif; font-weight:700;
+    font-size:15px; color:#cfe3ff; margin-bottom:20px; letter-spacing:3px; text-transform:uppercase;
+  }
+  .menu-hint {
+    margin-top:16px; font-size:11px; color:#7f93b8; letter-spacing:2px; text-transform:uppercase;
+    animation:blink 1.8s steps(1) infinite;
+  }
+
+  /* base dos botões */
+  .btn {
+    pointer-events:auto; cursor:pointer; user-select:none;
+    font-family:'Orbitron', sans-serif; font-weight:700;
+    color:#eaf2ff; background:linear-gradient(160deg, rgba(40,60,120,0.55), rgba(20,30,70,0.55));
+    border:1px solid rgba(130,180,255,0.35); border-radius:10px;
+    letter-spacing:2px; text-transform:uppercase;
+    transition:transform .12s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+    outline:none;
+  }
+  .btn:hover {
+    transform:translateY(-2px);
+    border-color:rgba(150,200,255,0.8);
+    box-shadow:0 0 26px rgba(90,150,255,0.45);
+    background:linear-gradient(160deg, rgba(55,80,160,0.7), rgba(28,42,95,0.7));
+  }
+  .btn:active { transform:translateY(0) scale(0.98); }
+
+  /* botão principal NOVO JOGO */
+  .btn-primary {
+    display:flex; align-items:center; gap:12px;
+    margin-top:8px; padding:16px 34px; font-size:19px;
+    background:linear-gradient(160deg, rgba(60,120,255,0.30), rgba(20,40,110,0.45));
+    border-color:rgba(150,200,255,0.55);
+    box-shadow:0 0 30px rgba(80,140,255,0.30);
+  }
+  .btn-primary:hover { box-shadow:0 0 40px rgba(110,170,255,0.65); }
+  .btn-icon { font-size:22px; filter:drop-shadow(0 0 6px rgba(160,200,255,0.8)); }
+
+  /* botões de dificuldade */
+  .diff-btn {
+    display:flex; align-items:center; gap:16px; text-align:left;
+    width:340px; margin:7px 0; padding:14px 18px;
+    border-left-width:4px;
+  }
+  .diff-key {
+    flex:0 0 auto; width:34px; height:34px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px; font-weight:900;
+    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.25);
+  }
+  .diff-body { display:flex; flex-direction:column; gap:3px; }
+  .diff-name { font-size:17px; letter-spacing:2px; }
+  .diff-desc {
+    font-family:'Exo 2', sans-serif; font-weight:400; text-transform:none;
+    font-size:11px; letter-spacing:0.3px; color:#a9bede;
+  }
+  /* cores por nível */
+  .diff-facil   { border-left-color:#33cc66; }
+  .diff-facil   .diff-key { color:#8dffb4; border-color:rgba(51,204,102,0.6); }
+  .diff-facil:hover   { box-shadow:0 0 26px rgba(51,204,102,0.4); border-color:rgba(51,204,102,0.8); }
+  .diff-medio   { border-left-color:#ffcc33; }
+  .diff-medio   .diff-key { color:#ffe08a; border-color:rgba(255,204,51,0.6); }
+  .diff-medio:hover   { box-shadow:0 0 26px rgba(255,204,51,0.4); border-color:rgba(255,204,51,0.8); }
+  .diff-dificil { border-left-color:#ff5555; }
+  .diff-dificil .diff-key { color:#ff9a9a; border-color:rgba(255,85,85,0.6); }
+  .diff-dificil:hover { box-shadow:0 0 26px rgba(255,85,85,0.4); border-color:rgba(255,85,85,0.8); }
+
+  /* voltar */
+  .btn-back {
+    margin-top:14px; padding:9px 20px; font-size:12px; font-weight:500;
+    color:#9fb2d6; background:transparent; border-color:rgba(120,150,200,0.3);
+  }
 </style>
 </head>
 <body>
 <div id="flash"></div>
+<div class="space-scene" id="spaceScene"><div class="earth"></div><div class="moon"></div></div>
 <div id="hud">
   <div id="fuelBarBg"><div id="fuelBarFill"></div></div>
   <div id="progressBarBg"><div id="progressBarFill"></div></div>
@@ -90,21 +252,36 @@
 </div>
 <div id="introOverlay" class="overlay" style="display:block">
   <div class="crawl-viewport"><div class="crawl-text" id="crawlText"></div></div>
-  <div class="skip-hint">pressione qualquer tecla ou clique para pular</div>
+  <div class="intro-start" id="introStart">▶ CLIQUE OU PRESSIONE QUALQUER TECLA PARA INICIAR</div>
+  <div class="skip-hint" id="skipHint" style="display:none">pressione qualquer tecla ou clique para pular</div>
 </div>
 <div id="titleOverlay" class="overlay center-panel" style="display:none">
-  <div class="panel">
+  <div class="menu">
     <div class="title-logo">CAPIM-X</div>
     <div class="title-tagline">ROCKET TO THE MOON</div>
-    <div class="title-prompt">[ENTER] ou clique — NOVO JOGO</div>
+    <button class="btn btn-primary" id="btnNewGame">
+      <span class="btn-icon">🚀</span><span>NOVO JOGO</span>
+    </button>
+    <div class="menu-hint">ENTER ou clique</div>
   </div>
 </div>
 <div id="selectOverlay" class="overlay center-panel" style="display:none">
-  <div class="panel">
+  <div class="menu">
     <div class="select-title">ESCOLHA A DIFICULDADE</div>
-    <div class="select-option">[1] FÁCIL — corredor largo, sem gravidade lateral</div>
-    <div class="select-option">[2] MÉDIO — gravidade lateral moderada</div>
-    <div class="select-option">[3] DIFÍCIL — corredor estreito, gravidade lateral forte</div>
+    <button class="btn diff-btn diff-facil" data-diff="facil">
+      <span class="diff-key">1</span>
+      <span class="diff-body"><span class="diff-name">FÁCIL</span><span class="diff-desc">Corredor largo · sem gravidade lateral</span></span>
+    </button>
+    <button class="btn diff-btn diff-medio" data-diff="medio">
+      <span class="diff-key">2</span>
+      <span class="diff-body"><span class="diff-name">MÉDIO</span><span class="diff-desc">Gravidade lateral moderada</span></span>
+    </button>
+    <button class="btn diff-btn diff-dificil" data-diff="dificil">
+      <span class="diff-key">3</span>
+      <span class="diff-body"><span class="diff-name">DIFÍCIL</span><span class="diff-desc">Corredor estreito · gravidade forte</span></span>
+    </button>
+    <button class="btn btn-back" id="btnBack">‹ VOLTAR</button>
+    <div class="menu-hint">1 / 2 / 3 ou clique</div>
   </div>
 </div>
 <div id="gameOverOverlay" class="overlay center-panel" style="display:none"><div class="panel" id="gameOverPanel"></div></div>
@@ -300,9 +477,28 @@ const AudioSys = {
   gameOver(){ if (!this.ctx) return; this.stopMusic(); const t=this.ctx.currentTime;
               [57,53,50,45].forEach((m,i)=> this.blip(t+i*0.22, this.mtof(m), 0.42, 'sawtooth', this.sfxGain, 0.24));
               this.blip(t+0.9, this.mtof(33), 1.3, 'sine', this.sfxGain, 0.30); },
-  win()     { if (!this.ctx) return; this.stopMusic(); const t=this.ctx.currentTime;
-              [60,64,67,72,76].forEach((m,i)=> this.blip(t+i*0.13, this.mtof(m), 0.34, 'square', this.sfxGain, 0.22));
-              [60,64,67,72].forEach(m => this.blip(t+0.66, this.mtof(m), 1.5, 'triangle', this.sfxGain, 0.16)); }
+  // tema de conquista: fanfarra + melodia triunfante em Dó maior + acorde final
+  win() {
+    if (!this.ctx) return;
+    this.stopMusic();
+    const t = this.ctx.currentTime + 0.05;
+    const M = this.sfxGain;
+    // fanfarra de abertura (brilhante, ascendente)
+    [[0.00,67,0.14],[0.12,72,0.14],[0.24,76,0.14],[0.36,79,0.36]]
+      .forEach(([o,n,d]) => this.blip(t+o, this.mtof(n), d, 'square', M, 0.20));
+    // pads: progressão triunfante C - G - Am - F - C
+    const pad = (o,ch,d) => ch.forEach(n => this.blip(t+o, this.mtof(n), d, 'sine', M, 0.05));
+    pad(0.8, CH.C, 1.2); pad(2.0, CH.G, 1.2); pad(3.2, CH.Am, 1.2); pad(4.4, CH.F, 1.2);
+    [60,64,67,72].forEach(n => this.blip(t+5.6, this.mtof(n), 2.2, 'sine', M, 0.06)); // acorde final
+    // baixo grave nas trocas de acorde
+    [[0.8,36],[2.0,31],[3.2,33],[4.4,29],[5.6,36]].forEach(([o,n]) => this.blip(t+o, this.mtof(n), 1.1, 'triangle', M, 0.12));
+    // melodia triunfante por cima
+    [[0.8,72,0.5],[1.3,74,0.3],[1.6,76,0.7],[2.4,79,0.7],[3.2,77,0.5],
+     [3.7,76,0.5],[4.4,74,0.4],[4.8,72,0.4],[5.6,84,1.8]]
+      .forEach(([o,n,d]) => this.blip(t+o, this.mtof(n), d, 'triangle', M, 0.18));
+    // "prato" de vitória no acorde final
+    this.noise(t+5.6, 1.2, 0.10, 6000);
+  }
 };
 
 /* =======================================================
@@ -408,17 +604,95 @@ function makeRockSurface(seed, baseColor, craterCount=12) {
   return {map,bumpMap};
 }
 
-const moonSurface = makeRockSurface(7341, 0xb8b7b2, 22);
+// ---------- lua (relevo 3D procedural) ----------
+// Duas texturas geradas em canvas: um HEIGHTMAP (piso rebaixado + borda
+// elevada por cratera) usado como displacement + bump — dá relevo real, que
+// aparece até na silhueta — e um COLOR map com mares de basalto, tom quente
+// e raios de ejecta. Sem assets externos.
+function makeMoonTextures() {
+  const size = 1024;
 
-// ---------- lua distante (narrativa) ----------
+  // ---- HEIGHTMAP (cinza 128 = altura zero) ----
+  const hc = document.createElement('canvas'); hc.width = hc.height = size;
+  const h = hc.getContext('2d');
+  h.fillStyle = '#808080'; h.fillRect(0, 0, size, size);
+  // ondulação de fundo (relevo suave e amplo)
+  for (let i = 0; i < 46; i++) {
+    const x = Math.random()*size, y = Math.random()*size, r = 60 + Math.random()*190;
+    const v = (128 + (Math.random()*2-1)*20) | 0;
+    const g = h.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(${v},${v},${v},0.5)`); g.addColorStop(1, `rgba(${v},${v},${v},0)`);
+    h.fillStyle = g; h.beginPath(); h.arc(x, y, r, 0, 7); h.fill();
+  }
+  // crateras com perfil realista: piso fundo -> subida -> borda elevada
+  const craters = [];
+  function crater(x, y, r) {
+    const g = h.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0.00, 'rgba(72,72,72,0.92)');   // piso rebaixado
+    g.addColorStop(0.55, 'rgba(98,98,98,0.75)');
+    g.addColorStop(0.80, 'rgba(150,150,150,0.55)');
+    g.addColorStop(0.88, 'rgba(232,232,232,0.95)'); // borda elevada (rim)
+    g.addColorStop(1.00, 'rgba(128,128,128,0)');
+    h.fillStyle = g; h.beginPath(); h.arc(x, y, r, 0, 7); h.fill();
+    craters.push({ x, y, r });
+  }
+  for (let i = 0; i < 12;  i++) crater(Math.random()*size, Math.random()*size, 42 + Math.random()*74); // grandes
+  for (let i = 0; i < 55;  i++) crater(Math.random()*size, Math.random()*size, 15 + Math.random()*30); // médias
+  for (let i = 0; i < 300; i++) crater(Math.random()*size, Math.random()*size, 3  + Math.random()*10); // pequenas
+
+  // ---- COLOR map (cinza-creme + mares + eco das crateras + ejecta) ----
+  const cc = document.createElement('canvas'); cc.width = cc.height = size;
+  const c = cc.getContext('2d');
+  c.fillStyle = '#9c9a90'; c.fillRect(0, 0, size, size);
+  for (let i = 0; i < 7; i++) { // mares de basalto (escuros, azulados)
+    const x = Math.random()*size, y = Math.random()*size, r = 120 + Math.random()*190;
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(72,74,84,0.85)'); g.addColorStop(0.7, 'rgba(78,80,90,0.4)'); g.addColorStop(1, 'rgba(78,80,90,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+  }
+  // raios de ejecta em algumas crateras grandes (estilo Tycho)
+  craters.filter(cr => cr.r > 60).slice(0, 4).forEach(({ x, y, r }) => {
+    for (let k = 0; k < 12; k++) {
+      const a = Math.random()*Math.PI*2, len = r*(2.5 + Math.random()*3);
+      c.strokeStyle = 'rgba(200,198,188,0.10)'; c.lineWidth = 1 + Math.random()*2;
+      c.beginPath(); c.moveTo(x + Math.cos(a)*r*0.9, y + Math.sin(a)*r*0.9);
+      c.lineTo(x + Math.cos(a)*len, y + Math.sin(a)*len); c.stroke();
+    }
+  });
+  craters.forEach(({ x, y, r }) => { // piso escuro + rim claro, ecoando o relevo
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0.00, 'rgba(58,58,64,0.35)');
+    g.addColorStop(0.82, 'rgba(58,58,64,0)');
+    g.addColorStop(0.90, 'rgba(214,210,198,0.5)');
+    g.addColorStop(1.00, 'rgba(214,210,198,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+  });
+
+  const bump = new THREE.CanvasTexture(hc);
+  const color = new THREE.CanvasTexture(cc);
+  return { bump, color };
+}
+
+const moonTex = makeMoonTextures();
 const moon = new THREE.Mesh(
-  new THREE.SphereGeometry(40, 64, 48),
-  new THREE.MeshStandardMaterial({ map:moonSurface.map, bumpMap:moonSurface.bumpMap, bumpScale:1.8, roughness:0.98, metalness:0 })
+  new THREE.SphereGeometry(40, 180, 180),   // alta resolução: o displacement esculpe a silhueta
+  new THREE.MeshStandardMaterial({
+    map: moonTex.color,
+    bumpMap: moonTex.bump,          bumpScale: 2.5,
+    displacementMap: moonTex.bump,  displacementScale: 2.6, displacementBias: -1.3, // 128 cinza = 0
+    roughness: 1, metalness: 0
+  })
 );
 moon.position.set(20, 30, -1800);
 moon.visible = false;
 moon.receiveShadow = true;
 scene.add(moon);
+// halo sutil de atmosfera/luz (filho: acompanha posição e escala da Lua)
+const moonGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(42.5, 40, 40),
+  new THREE.MeshBasicMaterial({ color:0xaabbff, transparent:true, opacity:0.10, side:THREE.BackSide, blending:THREE.AdditiveBlending, depthWrite:false })
+);
+moon.add(moonGlow);
 
 // ---------- estrelas ----------
 (function makeStarfield() {
@@ -693,8 +967,22 @@ const droneBodyGeo = new THREE.SphereGeometry(0.42, 8, 6);
 const droneMat = new THREE.MeshStandardMaterial({ color:0x667788, flatShading:true });
 const droneSensorGeo = new THREE.SphereGeometry(0.14, 6, 6);
 const droneSensorMat = new THREE.MeshStandardMaterial({ color:0xff3344, emissive:0x991122, emissiveIntensity:0.8 });
-const fuelCellMat = new THREE.MeshStandardMaterial({ color:0x33cc88, emissive:0x114433, emissiveIntensity:0.5, flatShading:true });
-const fuelCellGeo = new THREE.OctahedronGeometry(0.4, 0);
+// Célula de combustível — tanque pressurizado (conceito 1 de
+// docs/combustivel-foguete-3d.jsx): cilindro metálico com tampas
+// arredondadas, faixas de alerta e visor de líquido brilhante.
+// Geometrias compartilhadas (mesmo motivo do rockGeoPool: evitar
+// alocação por spawn) e sem PointLight por instância (custo de perf).
+const tankBodyMat = new THREE.MeshStandardMaterial({ color:0xb8bec8, roughness:0.3, metalness:0.9 });
+const tankBodyGeo = new THREE.CylinderGeometry(0.33, 0.33, 0.84, 16);
+const tankCapGeo = new THREE.SphereGeometry(0.33, 16, 10, 0, Math.PI*2, 0, Math.PI/2);
+const tankStripeMat = new THREE.MeshStandardMaterial({ color:0xf2b705, roughness:0.5, metalness:0.2 });
+const tankStripeGeo = new THREE.CylinderGeometry(0.339, 0.339, 0.084, 16);
+const tankWindowMat = new THREE.MeshStandardMaterial({ color:0x00e5ff, emissive:0x00c8e8, emissiveIntensity:1.6, roughness:0.1 });
+const tankWindowGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.42, 12);
+const tankValveMat = new THREE.MeshStandardMaterial({ color:0x8a3030, roughness:0.4, metalness:0.6 });
+const tankValveGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.18, 10);
+const tankWheelMat = new THREE.MeshStandardMaterial({ color:0xcc4444, roughness:0.4, metalness:0.5 });
+const tankWheelGeo = new THREE.TorusGeometry(0.108, 0.021, 8, 16);
 const bulletPlayerGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6);
 const bulletPlayerMat = new THREE.MeshBasicMaterial({ color:0xffff44 });
 const bulletDroneGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6);
@@ -932,10 +1220,26 @@ function spawnDrone(x, z) {
 }
 
 function spawnFuelCell(x, z) {
-  const mesh = new THREE.Mesh(fuelCellGeo, fuelCellMat);
-  mesh.position.set(x, 0, z);
-  scene.add(mesh);
-  fuelCells.push({ mesh, phase: Math.random()*1000 });
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(tankBodyGeo, tankBodyMat));
+  const top = new THREE.Mesh(tankCapGeo, tankBodyMat); top.position.y = 0.42;
+  group.add(top);
+  const bottom = new THREE.Mesh(tankCapGeo, tankBodyMat); bottom.rotation.x = Math.PI; bottom.position.y = -0.42;
+  group.add(bottom);
+  [-0.27, 0.27].forEach(y => {
+    const stripe = new THREE.Mesh(tankStripeGeo, tankStripeMat); stripe.position.y = y;
+    group.add(stripe);
+  });
+  const win = new THREE.Mesh(tankWindowGeo, tankWindowMat);
+  win.position.set(0, 0, 0.25);
+  group.add(win);
+  const valve = new THREE.Mesh(tankValveGeo, tankValveMat); valve.position.y = 0.75;
+  group.add(valve);
+  const wheel = new THREE.Mesh(tankWheelGeo, tankWheelMat); wheel.rotation.x = Math.PI/2; wheel.position.y = 0.85;
+  group.add(wheel);
+  group.position.set(x, 0, z);
+  scene.add(group);
+  fuelCells.push({ mesh:group, phase: Math.random()*1000 });
 }
 
 function fireDroneBullet(d) {
@@ -963,11 +1267,11 @@ function clearAllEntities() {
   debris.splice(0).forEach(d => scene.remove(d.mesh));
   impactEffects.splice(0).forEach(fx=>{ scene.remove(fx.points); fx.points.geometry.dispose(); fx.points.material.dispose(); });
   resetExhaust();
+  dustParts.splice(0).forEach(d => scene.remove(d.mesh));
   segments.splice(0).forEach(removeBeltSegment);
 }
 
-// preview inicial do corredor (atrás do menu)
-for (let i=0;i<20;i++) { buildBeltSegment(nextSegmentZ); nextSegmentZ -= CORRIDOR.segmentLength; }
+// nada de cinturão de asteroides atrás do menu — mesmo fundo limpo (só estrelas) do jogo 2D
 
 // pré-compila todos os shaders — sem isso, a 1ª aparição de cada objeto
 // (cometa, lua, balas, meteoros...) custaria uma trava no meio do jogo.
@@ -975,7 +1279,9 @@ for (let i=0;i<20;i++) { buildBeltSegment(nextSegmentZ); nextSegmentZ -= CORRIDO
 const warmup = new THREE.Group();
 warmup.visible = false;
 [[meteorGeoPool[0], meteorMats[0]], [droneBodyGeo, droneMat], [droneSensorGeo, droneSensorMat],
- [fuelCellGeo, fuelCellMat], [bulletPlayerGeo, bulletPlayerMat], [bulletDroneGeo, bulletDroneMat]]
+ [tankBodyGeo, tankBodyMat], [tankCapGeo, tankBodyMat], [tankStripeGeo, tankStripeMat],
+ [tankWindowGeo, tankWindowMat], [tankValveGeo, tankValveMat], [tankWheelGeo, tankWheelMat],
+ [bulletPlayerGeo, bulletPlayerMat], [bulletDroneGeo, bulletDroneMat]]
   .forEach(([geo, mat]) => warmup.add(new THREE.Mesh(geo, mat)));
 scene.add(warmup);
 renderer.compile(scene, camera);
@@ -988,7 +1294,7 @@ function flashHit() {
 }
 
 function damagePlayer() {
-  if (invulnerable || state !== 'playing') return;
+  if (invulnerable || state !== 'playing' || debugGod) return;
   lives--;
   spawnImpact(ship.position,1.35,0xffb45c);
   cameraShake = Math.max(cameraShake,0.55);
@@ -1084,6 +1390,7 @@ const progressBarFill = document.getElementById('progressBarFill');
 const scoreText = document.getElementById('scoreText');
 const livesText = document.getElementById('livesText');
 const introOverlay = document.getElementById('introOverlay');
+const spaceScene = document.getElementById('spaceScene');
 const crawlText = document.getElementById('crawlText');
 const titleOverlay = document.getElementById('titleOverlay');
 const selectOverlay = document.getElementById('selectOverlay');
@@ -1121,9 +1428,10 @@ function updateHUD() {
 }
 
 // ---------- narrativa (idêntica ao jogo 2D) ----------
-crawlText.textContent =
-  'CAPIM-X\n\n'+
-  '2049. A Terra esgotou seu recurso mais precioso.\n'+
+crawlText.innerHTML =
+  '<span class="crawl-title">CAPIM-X</span>\n\n\n'+
+  '2049.\n\n\n'+
+  'A Terra esgotou seu recurso mais precioso.\n'+
   'A última reserva conhecida está na Lua. Dezenas\n'+
   'de missões já tentaram chegar — nenhuma voltou.\n\n'+
   'Seus destroços viraram parte do cinturão de\n'+
@@ -1136,7 +1444,28 @@ crawlText.textContent =
   'chega ou vira mais um destroço.\n\n'+
   'Sem freio: a nave desliza, a gravidade puxa,\n'+
   'e a Lua cresce no horizonte.\n\n'+
-  'Desvie. Atire. Abasteça. Chegue.';
+  '<span class="crawl-final">Desvie.<br>Atire.<br>Abasteça.<br>Chegue.</span>';
+
+// ---------- campo de estrelas do overlay de introdução ----------
+(function buildStarfield() {
+  const bg = document.getElementById('spaceScene');
+  if (!bg) return;
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < 160; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 2 + 0.6;
+    s.style.width = size + 'px';
+    s.style.height = size + 'px';
+    s.style.left = (Math.random() * 100) + '%';
+    s.style.top = (Math.random() * 100) + '%';
+    s.style.setProperty('--dur', (2 + Math.random() * 4).toFixed(2) + 's');
+    s.style.setProperty('--delay', (Math.random() * 4).toFixed(2) + 's');
+    if (Math.random() < 0.15) s.style.background = '#bcd2ff';   // algumas estrelas azuladas
+    frag.appendChild(s);
+  }
+  bg.appendChild(frag);
+})();
 
 // ---------- controle de estado ----------
 function startGame(diffKey) {
@@ -1160,14 +1489,16 @@ function startGame(diffKey) {
   massMul = 1;
   nextSeparation = 0;
   ship.position.set(0,0,0);
+  ship.rotation.set(0,0,0);   // zera pose (evita herdar a vertical de um pouso anterior)
   ship.visible = true;
-  moon.visible = false; moon.scale.set(1,1,1);
+  moon.visible = false; moon.scale.set(1,1,1); moon.rotation.set(0,0,0);
 
   introOverlay.style.display = 'none';
   titleOverlay.style.display = 'none';
   selectOverlay.style.display = 'none';
   gameOverOverlay.style.display = 'none';
   winOverlay.style.display = 'none';
+  spaceScene.style.display = 'none';   // no jogo, a cena 3D aparece no lugar
   updateHUD();
   AudioSys.startTrack(AudioSys.gameTrack);
 }
@@ -1186,6 +1517,13 @@ function goToSelect() {
   selectOverlay.style.display = 'flex';
 }
 
+function goBack() {
+  if (state !== 'select') return;
+  state = 'title';
+  selectOverlay.style.display = 'none';
+  titleOverlay.style.display = 'flex';
+}
+
 function triggerGameOver(reason) {
   state = 'gameover';
   ship.visible = false;
@@ -1197,30 +1535,54 @@ function triggerGameOver(reason) {
   gameOverOverlay.style.display = 'flex';
 }
 
-function winGame() {
-  state = 'win';
-  ship.visible = false;
-  RadioChatter.stop();
-  AudioSys.win();
-  moon.visible = true;
-  winPanel.textContent =
-    `A CAPIM-X CHEGOU NA LUA\n\nDificuldade: ${diff.label}\nScore: ${Math.floor(score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`;
-  winOverlay.style.display = 'flex';
-}
+// vitória: agora passa pela cutscene de pouso — ver bloco
+// "cutscene de pouso na Lua" (startLanding -> finishLanding) mais abaixo.
 
 // ---------- input ----------
 const keys = {};
 const CAPTURED_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'];
 
+// ---------- modo debug (ative com ?debug na URL) ----------
+const DEBUG = location.search.includes('debug');
+let debugGod = false;
+if (DEBUG) {
+  const dh = document.createElement('div');
+  dh.textContent = 'DEBUG   [L] pular p/ pouso   [G] god mode';
+  dh.style.cssText = 'position:fixed;right:14px;bottom:26px;font:11px monospace;color:#ff77cc;letter-spacing:1px;z-index:6;pointer-events:none;text-shadow:0 0 6px rgba(255,0,120,0.5)';
+  document.body.appendChild(dh);
+}
+
+// pula direto para a cutscene de pouso (inicia um jogo se necessário)
+function debugToEnding() {
+  if (state !== 'playing' && state !== 'landing' && state !== 'win') startGame('medio');
+  if (state === 'playing') startLanding();
+}
+
 function armAudio() {
   AudioSys.init();
   RadioChatter.init();
   if (AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
-  if (state === 'intro' && !AudioSys.introPlayed && !AudioSys.track) {
+  if ((state === 'title' || state === 'select') && !AudioSys.track && !AudioSys.introTimer) {
+    AudioSys.startTrack(AudioSys.menuTrack);
+  }
+}
+
+// primeiro gesto na intro: inicia a música E o texto rolando juntos
+let introStarted = false;
+function beginIntro() {
+  if (introStarted) return;
+  introStarted = true;
+  const startEl = document.getElementById('introStart');
+  const skipEl = document.getElementById('skipHint');
+  if (startEl) startEl.style.display = 'none';
+  if (skipEl)  skipEl.style.display = 'block';
+  crawlText.style.animationPlayState = 'running';
+  AudioSys.init();
+  RadioChatter.init();
+  if (AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
+  if (!AudioSys.introPlayed && !AudioSys.track) {
     AudioSys.introPlayed = true;
     AudioSys.playIntro();
-  } else if ((state === 'title' || state === 'select') && !AudioSys.track && !AudioSys.introTimer) {
-    AudioSys.startTrack(AudioSys.menuTrack);
   }
 }
 
@@ -1232,8 +1594,14 @@ addEventListener('keydown', e => {
   armAudio();
   if (e.code === 'KeyM') { AudioSys.toggleMute(); if (AudioSys.muted) RadioChatter.stop(); }
 
-  if (state === 'intro') { goToTitle(); return; }
+  if (DEBUG) {
+    if (e.code === 'KeyL') { debugToEnding(); return; }
+    if (e.code === 'KeyG') { debugGod = !debugGod; if (state === 'playing') showStageMsg('GOD MODE ' + (debugGod ? 'ON' : 'OFF')); }
+  }
+
+  if (state === 'intro') { if (!introStarted) beginIntro(); else goToTitle(); return; }
   if (state === 'title') { if (e.code==='Enter' || e.code==='Space') goToSelect(); return; }
+  if (state === 'select' && e.code === 'Escape') { goBack(); return; }
   if (state==='select' || state==='gameover' || state==='win') {
     if (e.code==='Digit1') startGame('facil');
     else if (e.code==='Digit2') startGame('medio');
@@ -1244,8 +1612,18 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('pointerdown', e => {
   armAudio();
-  if (state === 'intro') goToTitle();
-  else if (state === 'title') goToSelect();
+  if (state === 'intro') { if (!introStarted) beginIntro(); else goToTitle(); }
+});
+
+// ---------- botões do menu ----------
+function uiBlip(freq) {
+  if (!AudioSys.ctx || !AudioSys.sfxGain) return;
+  AudioSys.blip(AudioSys.ctx.currentTime, freq, 0.09, 'triangle', AudioSys.sfxGain, 0.14, freq*1.5);
+}
+document.getElementById('btnNewGame').addEventListener('click', () => { armAudio(); uiBlip(720); goToSelect(); });
+document.getElementById('btnBack').addEventListener('click', () => { armAudio(); uiBlip(420); goBack(); });
+document.querySelectorAll('.diff-btn').forEach(b => {
+  b.addEventListener('click', () => { armAudio(); uiBlip(900); startGame(b.dataset.diff); });
 });
 
 // ---------- câmera em terceira pessoa ----------
@@ -1253,6 +1631,113 @@ const camOffset = new THREE.Vector3(0, 7.5, 9.5);
 const desiredCamPos = new THREE.Vector3();
 const camTarget = new THREE.Vector3();
 let cameraShake = 0;
+
+// ---------- cutscene de pouso na Lua (não-interativa) ----------
+function smoothstep(t) { t = THREE.MathUtils.clamp(t, 0, 1); return t*t*(3 - 2*t); }
+
+const LANDING_DURATION = 5.5;             // segundos da descida
+let landingT = 0, landStartRotX = 0, landStartRotZ = 0;
+const landStartPos   = new THREE.Vector3();
+const touchdown      = new THREE.Vector3();
+const camStart       = new THREE.Vector3();
+const camTargetStart = new THREE.Vector3();
+const camLookTarget  = new THREE.Vector3();
+const camEndV        = new THREE.Vector3();
+
+const dustGeo = new THREE.SphereGeometry(0.12, 6, 6);
+const dustParts = [];
+
+function startLanding() {
+  state = 'landing';
+  landingT = 0;
+  landStartPos.copy(ship.position);
+  landStartRotX = ship.rotation.x;
+  landStartRotZ = ship.rotation.z;
+  ship.visible = true;
+
+  // posiciona a Lua grande, logo abaixo e um pouco à frente da nave
+  const S = 1.6; moon.scale.setScalar(S); moon.visible = true;
+  const effR = 40*S, descent = 42, forward = 26;
+  moon.position.set(ship.position.x, ship.position.y - descent - effR, ship.position.z - forward);
+  touchdown.set(moon.position.x, moon.position.y + effR + 0.6, moon.position.z); // topo da Lua
+
+  camStart.copy(camera.position);
+  camTargetStart.copy(ship.position);
+}
+
+function updateLanding(dt) {
+  landingT = Math.min(1, landingT + dt/LANDING_DURATION);
+  const e = smoothstep(landingT);
+
+  // desce do ponto inicial até o topo da Lua
+  ship.position.lerpVectors(landStartPos, touchdown, e);
+  // gira para a vertical: nariz para cima, motor/retrofoguete para baixo
+  ship.rotation.x = landStartRotX + (Math.PI/2 - landStartRotX)*e;
+  ship.rotation.z = landStartRotZ*(1 - e);
+
+  // retrofoguete de frenagem: chama cresce na aproximação final
+  if (shipParts.flame) {
+    const retro = 0.8 + e*1.8 + Math.random()*0.3;
+    shipParts.flame.scale.set(1.1, retro, 1.1);
+    shipParts.flame.material.opacity = 0.6 + Math.random()*0.3;
+    if (shipParts.flameLight) shipParts.flameLight.intensity=(9+Math.random()*8)*retro;
+    updateExhaust(dt,retro);
+  }
+
+  // Mantém a janela de sombras centrada na nave durante toda a descida.
+  sun.position.set(ship.position.x+8,ship.position.y+14,ship.position.z+10);
+  sun.target.position.copy(ship.position);
+  sun.target.updateMatrixWorld();
+
+  moon.rotation.y += dt*0.05;
+
+  // câmera acompanha a descida e fecha num enquadramento da superfície
+  camEndV.set(touchdown.x + 7, touchdown.y + 5, touchdown.z + 11);
+  camera.position.lerpVectors(camStart, camEndV, smoothstep(Math.min(1, landingT*1.15)));
+  camLookTarget.lerpVectors(camTargetStart, touchdown, e);
+  camLookTarget.y += 2.5*e;   // sobe a mira no fim -> nave no terço inferior (fora do painel)
+  camera.lookAt(camLookTarget);
+
+  if (landingT >= 1) finishLanding();
+}
+
+function spawnDust() {
+  for (let i = 0; i < 18; i++) {
+    const m = new THREE.Mesh(dustGeo, new THREE.MeshBasicMaterial({ color:0xc4c4d0, transparent:true, opacity:0.85 }));
+    m.position.copy(touchdown);
+    scene.add(m);
+    const ang = Math.random()*Math.PI*2, sp = THREE.MathUtils.randFloat(2, 5);
+    dustParts.push({ mesh:m, vel:new THREE.Vector3(Math.cos(ang)*sp, THREE.MathUtils.randFloat(1.5, 3.5), Math.sin(ang)*sp), life:1 });
+  }
+}
+
+function finishLanding() {
+  spawnDust();
+  RadioChatter.stop();   // silencia o chatter antes do tema de conquista
+  AudioSys.win();
+  state = 'win';
+  ship.visible = true;   // fica pousada e visível
+  winPanel.textContent =
+    `A CAPIM-X POUSOU NA LUA\n\nDificuldade: ${diff.label}\nScore: ${Math.floor(score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`;
+  winOverlay.style.display = 'flex';
+}
+
+function updateWinIdle(dt) {
+  moon.rotation.y += dt*0.04;
+  if (shipParts.flame) shipParts.flame.material.opacity = 0; // motor desligado após pousar
+  if (shipParts.flameLight) shipParts.flameLight.intensity = 0;
+  updateExhaust(dt,0); // deixa as últimas partículas se dissiparem sem gerar novas
+  for (let i = dustParts.length-1; i >= 0; i--) {
+    const d = dustParts[i];
+    d.mesh.position.addScaledVector(d.vel, dt);
+    d.vel.y -= 5*dt;                 // "gravidade" puxa a poeira de volta
+    d.vel.multiplyScalar(0.96);
+    d.life -= dt*0.7;
+    d.mesh.material.opacity = Math.max(0, d.life)*0.85;
+    d.mesh.scale.setScalar(1 + (1 - d.life)*1.6);
+    if (d.life <= 0) { scene.remove(d.mesh); dustParts.splice(i, 1); }
+  }
+}
 
 // ---------- loop principal ----------
 const clock = new THREE.Clock();
@@ -1263,7 +1748,8 @@ function animate() {
 
   updateComet(dt); // roda em qualquer estado — o cometa também cruza o céu do menu
   updateImpactEffects(dt);
-
+  if (state === 'landing') { updateLanding(dt); renderer.render(scene, camera); return; }
+  if (state === 'win')     { updateWinIdle(dt); renderer.render(scene, camera); return; }
   if (state !== 'playing') {
     renderer.render(scene, camera);
     return;
@@ -1297,6 +1783,7 @@ function animate() {
   let drain = (4 + (boosting?3:0) - (braking?2:0)) * diff.fuelDrainMul;
   drain = Math.max(drain, 1) * (0.55 + 0.45*massMul);  // mais leve = menos consumo
   fuel -= drain*dt;
+  if (debugGod) fuel = 100;   // debug: combustível infinito
 
   const effMaxSpeed = diff.maxSpeed * (1 + (1-massMul)*0.5);
   if (keys['ArrowLeft'])  vx -= (diff.thrust/massMul)*dt;
@@ -1384,7 +1871,7 @@ function animate() {
     if (d.fireCd <= 0) { fireDroneBullet(d); d.fireCd = THREE.MathUtils.randFloat(1500,3000); }
     if (d.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(d.mesh); drones.splice(i,1); }
   }
-  for (const f of fuelCells) { f.mesh.position.y = Math.sin((now+f.phase)/400)*0.2; }
+  for (const f of fuelCells) { f.mesh.position.y = Math.sin((now+f.phase)/400)*0.2; f.mesh.rotation.y += 1.4*dt; }
   for (let i=fuelCells.length-1;i>=0;i--) {
     const f = fuelCells[i];
     if (f.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(f.mesh); fuelCells.splice(i,1); }
@@ -1402,14 +1889,8 @@ function animate() {
 
   handleCollisions();
 
-  if (difficultyT > 0.75) {
-    const p = THREE.MathUtils.clamp((difficultyT-0.75)/0.25, 0, 1);
-    moon.visible = true;
-    moon.scale.setScalar(1 + p*3);
-    moon.position.set(20, 30, ship.position.z - 300 + p*250);
-  }
-
-  if (distanceTravelled >= moonDistance) { winGame(); return; }
+  // (a Lua aparece apenas na cutscene de pouso — ver startLanding)
+  if (distanceTravelled >= moonDistance) { startLanding(); return; }
 
   updateHUD();
 
