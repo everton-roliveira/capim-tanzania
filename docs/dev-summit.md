@@ -16,13 +16,17 @@ Ano 2049. A Terra esgotou seu recurso mais precioso — o **Capim**. E a última
 
 Dezenas de missões já tentaram chegar lá. Nenhuma voltou. Os destroços dessas tentativas agora flutuam pelo caminho, misturados a um cinturão de meteoros que separa a Terra da sua última esperança verde.
 
-Você pilota a **Capim-X**, a última nave que a humanidade conseguiu construir. Equipada com um canhão de pulso e um tanque de combustível limitado, cada tiro e cada manobra gastam energia. As células de combustível abandonadas pelas missões anteriores podem ser a diferença entre chegar ou virar mais um destroço no caminho de quem vier depois.
+Você pilota o **Capim-X**, o último foguete que a humanidade conseguiu construir. Equipado com um canhão de pulso e um tanque de combustível limitado, cada tiro e cada manobra gastam energia. As células de combustível abandonadas pelas missões anteriores podem ser a diferença entre chegar ou virar mais um destroço no caminho de quem vier depois.
 
-O espaço não perdoa: aqui não existe freio. A nave desliza, a gravidade puxa, e a Lua cresce lentamente no horizonte.
+O espaço não perdoa: a gravidade puxa e o foguete desliza, mas o comando de freio ajuda a conter o impulso. A Lua cresce lentamente no horizonte.
 
 A missão é simples de explicar e difícil de cumprir: **atire, desvie, abasteça, chegue.**
 
-4. **Stack**
+4. **Eventos Aleatórios**
+
+- **Evolução para 3D** — o jogo nasceu em 2D. Já tínhamos feito os efeitos sonoros quando surgiu o primeiro evento aleatório do jogo — e a partir dele decidimos transformar o jogo em 3D.
+
+5. **Stack**
 
 - **Engine**: [Phaser 3](https://phaser.io/) (v3.70.0, via CDN) — física arcade, colisões, grupos e câmera.
 - **Frontend**: HTML/CSS/JS puro, sem framework e sem build step — arquivo único.
@@ -31,7 +35,7 @@ A missão é simples de explicar e difícil de cumprir: **atire, desvie, abaste�
 - **Versionamento**: Git/GitHub.
 - **Deploy**: nenhum — é um HTML estático, roda direto no navegador.
 
-5. **Como utilizamos a IA**
+6. **Como utilizamos a IA**
 
 O projeto foi "vibe-coded" do início ao fim com a Claude (Opus 4.8, 1M de contexto), da primeira versão jogável até a trilha sonora e os efeitos sonoros procedurais.
 
