@@ -1051,6 +1051,7 @@ function startGame(diffKey) {
   ship.rotation.set(0,0,0);   // zera pose (evita herdar a vertical de um pouso anterior)
   ship.visible = true;
   moon.visible = false; moon.scale.set(1,1,1); moon.rotation.set(0,0,0);
+  removeFlag();
 
   introOverlay.style.display = 'none';
   titleOverlay.style.display = 'none';
@@ -1170,6 +1171,56 @@ const camEndV        = new THREE.Vector3();
 const dustGeo = new THREE.SphereGeometry(0.12, 6, 6);
 const dustParts = [];
 
+// ---------- bandeira Capim (plantada no pouso) ----------
+// Haste horizontal no topo (como a bandeira real da Apollo): na Lua não
+// tem atmosfera pra "tremular" a bandeira, então ela fica esticada por
+// uma armação rígida em vez de balançar ao vento.
+const FLAG_POLE_HEIGHT = 2.2;
+const flagPoleMat = new THREE.MeshStandardMaterial({ color:0xcccccc, roughness:0.4, metalness:0.6 });
+const flagPoleGeo = new THREE.CylinderGeometry(0.025, 0.025, FLAG_POLE_HEIGHT, 6);
+const flagRodGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.85, 6);
+const flagClothMat = new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.6, side:THREE.DoubleSide });
+const flagClothGeo = new THREE.PlaneGeometry(0.85, 0.52);
+const flagLogoTex = new THREE.TextureLoader().load('capim-logo.png');
+const flagLogoMat = new THREE.MeshBasicMaterial({ map:flagLogoTex, transparent:true, side:THREE.DoubleSide });
+const flagLogoGeo = new THREE.PlaneGeometry(0.62, 0.31);
+
+let flag = null;
+function plantFlag() {
+  if (flag) return;
+  const group = new THREE.Group();
+
+  const pole = new THREE.Mesh(flagPoleGeo, flagPoleMat);
+  pole.position.y = FLAG_POLE_HEIGHT/2;
+  group.add(pole);
+
+  const rod = new THREE.Mesh(flagRodGeo, flagPoleMat);
+  rod.rotation.z = Math.PI/2;
+  rod.position.set(0.425, FLAG_POLE_HEIGHT - 0.26, 0);
+  group.add(rod);
+
+  const cloth = new THREE.Mesh(flagClothGeo, flagClothMat);
+  cloth.position.set(0.425, FLAG_POLE_HEIGHT - 0.26, 0);
+  group.add(cloth);
+
+  const logo = new THREE.Mesh(flagLogoGeo, flagLogoMat);
+  logo.position.set(0.425, FLAG_POLE_HEIGHT - 0.26, 0.006);
+  group.add(logo);
+  const logoBack = new THREE.Mesh(flagLogoGeo, flagLogoMat);
+  logoBack.position.set(0.425, FLAG_POLE_HEIGHT - 0.26, -0.006);
+  logoBack.rotation.y = Math.PI;
+  group.add(logoBack);
+
+  group.position.set(touchdown.x + 1.3, touchdown.y, touchdown.z + 0.3);
+  scene.add(group);
+  flag = group;
+}
+function removeFlag() {
+  if (!flag) return;
+  scene.remove(flag);
+  flag = null;
+}
+
 function startLanding() {
   state = 'landing';
   landingT = 0;
@@ -1229,6 +1280,7 @@ function spawnDust() {
 
 function finishLanding() {
   spawnDust();
+  plantFlag();
   RadioChatter.stop();   // silencia o chatter antes do tema de conquista
   AudioSys.win();
   state = 'win';
