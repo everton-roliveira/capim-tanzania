@@ -141,12 +141,12 @@
     font-family:'Exo 2', sans-serif; text-transform:uppercase;
     font-size:24px; line-height:1.9; letter-spacing:0.5px;
     text-shadow:0 0 14px rgba(255,232,31,0.35);
-    animation:crawl 40s linear forwards;
+    animation:crawl 52s linear forwards;
     animation-play-state:paused;   /* só corre após o 1º gesto (permite áudio) */
   }
   @keyframes crawl {
     0%   { top:100%; }
-    100% { top:-180%; }
+    100% { top:-245%; }
   }
   /* título CAPIM-X no crawl — grande e imponente */
   .crawl-title {
@@ -465,27 +465,7 @@
   <button id="pauseButton" aria-label="Pausar jogo">Ⅱ</button>
   <div id="shipLabel">CAPIM-X</div>
   <div id="stageMsg"></div>
-<<<<<<< HEAD
   <div id="controlsText">← → desliza   ↑ acelera   ↓ reduz empuxo   SPACE atira   P pausa   M muta</div>
-=======
-  <div id="controlsText">← → desliza   ↑ acelera   ↓ reduz empuxo   SPACE atira   M muta   P pausa</div>
-  <button id="btnPause" class="hud-btn" title="Pausar (P / ESC)">⏸</button>
-</div>
-<div id="pauseOverlay" class="overlay center-panel" style="display:none">
-  <div class="menu pause-menu">
-    <div class="select-title">⏸ MISSÃO EM PAUSA</div>
-    <div class="pause-section" id="pauseMain">
-      <button class="btn btn-primary" id="btnResume"><span class="btn-icon">▶</span><span>CONTINUAR</span></button>
-      <button class="btn btn-back" id="btnPauseMenu"><span class="btn-icon">🛰️</span><span>VOLTAR AO MENU</span></button>
-      <div class="menu-hint">ESC ou P — continuar</div>
-    </div>
-    <div class="pause-section" id="pauseConfirm" style="display:none">
-      <div class="confirm-warn">⚠️ Você perderá o progresso desta missão.</div>
-      <button class="btn btn-danger" id="btnConfirmMenu"><span class="btn-icon">🛰️</span><span>SIM, VOLTAR AO MENU</span></button>
-      <button class="btn btn-primary" id="btnCancelMenu"><span class="btn-icon">↩</span><span>CANCELAR</span></button>
-    </div>
-  </div>
->>>>>>> c08cbf6 (Adiciona pausa e voltar ao menu durante a gameplay)
 </div>
 <div id="introOverlay" class="overlay" style="display:block">
   <div class="crawl-viewport"><div class="crawl-text" id="crawlText"></div></div>
@@ -2185,20 +2165,22 @@ crawlText.innerHTML =
   '<span class="crawl-title">CAPIM-X</span>\n\n\n'+
   '2049.\n\n\n'+
   'A humanidade automatizou tudo — menos o desastre\n'+
-  'que não viu chegar: a esmaltita acabou.\n\n'+
-  'Sem o mineral bruto do esmalte, nenhum dente se\n'+
-  'forma, nenhum se recupera. Chamaram de Grande\n'+
-  'Cárie. O planeta perdeu, literalmente, o sorriso.\n\n'+
-  'A última reserva está na Lua. Quase toda startup\n'+
-  'com foguete tentou chegar lá. Quase toda explodiu.\n'+
-  'O caminho virou um cemitério de carcaças, tanques\n'+
-  'vazando e drones de mineração que enlouqueceram.\n\n'+
-  'A Capim financiou o sorriso por anos. Agora vai\n'+
-  'financiar a fonte dele.\n\n'+
-  'Reabasteça nos tanques de quem falhou. Recupere\n'+
-  'créditos, peças e dados. Cada tentativa deixa a\n'+
-  'Capim-X mais perto de trazer o sorriso de volta.\n\n'+
-  '<span class="crawl-final">Desvie.<br>Atire.<br>Abasteça.<br>Pouse.</span>';
+  'que não viu chegar: a ESMALTITA acabou.\n\n'+
+  'É o mineral bruto do esmalte. Sem ele, nenhum\n'+
+  'dente se forma ou se recupera. Chamaram de\n'+
+  'GRANDE CÁRIE. A Terra perdeu, literalmente,\n'+
+  'o sorriso.\n\n'+
+  'A última reserva está na Lua. Empresas correram\n'+
+  'para buscá-la — e quase todas explodiram tentando.\n'+
+  'O caminho virou um cemitério de foguetes: tanques,\n'+
+  'módulos e painéis à deriva. Alguns sistemas de\n'+
+  'armamento ainda têm energia e disparam às cegas.\n\n'+
+  'A Capim financiou o sorriso do país por anos.\n'+
+  'Agora vai financiar a fonte dele.\n\n'+
+  'A CAPIM-X aprendeu com os mortos: reabasteça nos\n'+
+  'tanques de quem falhou e reaproveite suas peças.\n'+
+  'Cada estágio perdido deixa você mais leve.\n\n'+
+  '<span class="crawl-final">Desvie.<br>Reabasteça.<br>Canibalize.<br>Pouse.<br>Traga o sorriso de volta.</span>';
 
 // ---------- campo de estrelas do overlay de introdução ----------
 (function buildStarfield() {
@@ -2391,15 +2373,6 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyG') { debugGod = !debugGod; if (state === 'playing') showStageMsg('GOD MODE ' + (debugGod ? 'ON' : 'OFF')); }
   }
 
-  if (state === 'playing' && (e.code === 'Escape' || e.code === 'KeyP')) { pauseGame(); return; }
-  if (state === 'paused') {
-    if (e.code === 'Escape' || e.code === 'KeyP') {
-      if (pauseConfirm.style.display !== 'none') showPauseMain();  // na confirmação, ESC cancela
-      else resumeGame();
-    }
-    return;
-  }
-
   if (state === 'intro') { if (!introStarted) beginIntro(); else goToTitle(); return; }
   if (state === 'playing' && (e.code === 'Escape' || e.code === 'KeyP')) { uiBlip(620); pauseGame(); return; }
   if (state === 'title') {
@@ -2453,47 +2426,6 @@ upgradeGrid.addEventListener('click', e => {
   buyUpgrade(btn.dataset.upgrade);
 });
 renderEconomyUI();
-
-// ---------- pausa / voltar ao menu durante a gameplay ----------
-const pauseOverlay = document.getElementById('pauseOverlay');
-const btnPause = document.getElementById('btnPause');
-
-const pauseMain = document.getElementById('pauseMain');
-const pauseConfirm = document.getElementById('pauseConfirm');
-function showPauseMain() { pauseMain.style.display = 'flex'; pauseConfirm.style.display = 'none'; }
-function pauseGame() {
-  if (state !== 'playing') return;
-  state = 'paused';
-  showPauseMain();               // sempre abre na tela principal (não na confirmação)
-  pauseOverlay.style.display = 'flex';
-}
-function resumeGame() {
-  if (state !== 'paused') return;
-  state = 'playing';
-  pauseOverlay.style.display = 'none';
-}
-function returnToMenu() {
-  state = 'title';
-  pauseOverlay.style.display = 'none';
-  gameOverOverlay.style.display = 'none';
-  winOverlay.style.display = 'none';
-  ship.visible = false;
-  removeFlag(); removeAstronaut();
-  spaceScene.style.display = 'block';   // traz de volta o fundo espacial do menu
-  titleOverlay.style.display = 'flex';
-  RadioChatter.stop();
-  AudioSys.startTrack(AudioSys.menuTrack);
-}
-
-btnPause.addEventListener('click', () => { armAudio(); uiBlip(500); pauseGame(); });
-document.getElementById('btnResume').addEventListener('click', () => { armAudio(); uiBlip(720); resumeGame(); });
-// "voltar ao menu" pede confirmação antes (o progresso da missão se perde)
-document.getElementById('btnPauseMenu').addEventListener('click', () => {
-  armAudio(); uiBlip(360);
-  pauseMain.style.display = 'none'; pauseConfirm.style.display = 'flex';
-});
-document.getElementById('btnCancelMenu').addEventListener('click', () => { uiBlip(600); showPauseMain(); });
-document.getElementById('btnConfirmMenu').addEventListener('click', () => { uiBlip(300); returnToMenu(); });
 
 // ---------- câmera em terceira pessoa ----------
 const camOffset = new THREE.Vector3(0, 7.5, 9.5);
@@ -3049,15 +2981,11 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
 
-<<<<<<< HEAD
   if (state === 'paused') {
     renderer.render(scene, camera);
     return;
   }
 
-=======
-  btnPause.style.display = state === 'playing' ? 'flex' : 'none';  // botão de pausa só na gameplay
->>>>>>> c08cbf6 (Adiciona pausa e voltar ao menu durante a gameplay)
   updateComet(dt); // roda em qualquer estado — o cometa também cruza o céu do menu
   updateImpactEffects(dt);
   if (state === 'landing') { updateLanding(dt); renderer.render(scene, camera); return; }
