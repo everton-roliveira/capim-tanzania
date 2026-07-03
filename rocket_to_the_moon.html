@@ -32,6 +32,122 @@ const DIFFICULTIES = {
   dificil: { label:'DIFÍCIL', moonDistance:22000, corridorHalf:120, minHalf:60,  maxHalf:170, fuelDrainMul:1.3, spawnMul:1.4, thrust:650, drag:110, maxSpeed:280, gravity:45  }
 };
 
+/* =======================================================
+   ÁUDIO — 100% procedural (Web Audio API)
+   Sem arquivos externos, sem CDN: tudo sintetizado aqui.
+   Música de menu e de jogo em loop + SFX de disparo,
+   explosão, pickup, game over e vitória.
+   ======================================================= */
+// acordes (notas MIDI) usados pelas trilhas
+const CH = {
+  Am:[57,60,64], C:[60,64,67], F:[53,57,60], G:[55,59,62], Dm:[50,53,57], E:[52,56,59]
+};
+
+const AudioSys = {
+  ctx:null, master:null, musicGain:null, sfxGain:null,
+  timer:null, track:null, step:0, nextTime:0, muted:false,
+
+  init() {
+    if (this.ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    this.ctx = new AC();
+    this.master    = this.ctx.createGain(); this.master.gain.value    = 0.5;  this.master.connect(this.ctx.destination);
+    this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = 0.35; this.musicGain.connect(this.master);
+    this.sfxGain   = this.ctx.createGain(); this.sfxGain.gain.value   = 0.55; this.sfxGain.connect(this.master);
+  },
+
+  mtof(m) { return 440 * Math.pow(2, (m-69)/12); },
+
+  // uma voz de oscilador com envelope
+  blip(time, freq, dur, type, dest, peak=0.3, glideTo=null) {
+    if (!this.ctx) return;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, time);
+    if (glideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, glideTo), time+dur);
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(peak, time+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, time+dur);
+    o.connect(g); g.connect(dest);
+    o.start(time); o.stop(time+dur+0.03);
+  },
+
+  // rajada de ruído filtrado (explosões)
+  noise(time, dur, peak, filterFreq) {
+    if (!this.ctx) return;
+    const n = Math.floor(this.ctx.sampleRate*dur);
+    const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i=0;i<n;i++) data[i] = Math.random()*2-1;
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const filt = this.ctx.createBiquadFilter(); filt.type='lowpass';
+    filt.frequency.setValueAtTime(filterFreq, time);
+    filt.frequency.exponentialRampToValueAtTime(Math.max(80, filterFreq*0.2), time+dur);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(peak, time);
+    g.gain.exponentialRampToValueAtTime(0.0001, time+dur);
+    src.connect(filt); filt.connect(g); g.connect(this.sfxGain);
+    src.start(time); src.stop(time+dur);
+  },
+
+  // ---------- trilhas (scheduler com look-ahead) ----------
+  menuTrack: {
+    stepDur:0.30, length:16,
+    play(step, time) { // this === AudioSys
+      const bars = [CH.Am, CH.F, CH.C, CH.G];
+      const chord = bars[Math.floor(step/4)%4];
+      this.blip(time, this.mtof(chord[step%3]+12), 0.55, 'triangle', this.musicGain, 0.16);
+      if (step%4===0) this.blip(time, this.mtof(chord[0]-12), 1.3, 'sine', this.musicGain, 0.20);
+      if (step%8===2) this.blip(time, this.mtof(chord[2]+24), 0.45, 'sine', this.musicGain, 0.07);
+    }
+  },
+  gameTrack: {
+    stepDur:0.13, length:32,
+    play(step, time) {
+      const bars = [CH.Am, CH.C, CH.F, CH.G, CH.Am, CH.F, CH.Dm, CH.E];
+      const chord = bars[Math.floor(step/4)%8];
+      this.blip(time, this.mtof(chord[0]-12), 0.12, 'square', this.musicGain, 0.14);   // baixo pulsante
+      if (step%2===0) this.blip(time, 70, 0.10, 'sine', this.musicGain, 0.30, 40);      // kick
+      const seq = [0,1,2,1];
+      this.blip(time, this.mtof(chord[seq[step%4]]+12), 0.11, 'sawtooth', this.musicGain, 0.10); // arpejo
+    }
+  },
+
+  startTrack(track) {
+    if (!this.ctx) return;
+    this.stopMusic();
+    this.track = track; this.step = 0; this.nextTime = this.ctx.currentTime + 0.1;
+    this._schedule();
+  },
+  _schedule() {
+    if (!this.track) return;
+    while (this.nextTime < this.ctx.currentTime + 0.2) {
+      this.track.play.call(this, this.step, this.nextTime);
+      this.nextTime += this.track.stepDur;
+      this.step = (this.step+1) % this.track.length;
+    }
+    this.timer = setTimeout(() => this._schedule(), 40);
+  },
+  stopMusic() { if (this.timer) { clearTimeout(this.timer); this.timer = null; } this.track = null; },
+
+  toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.5; },
+
+  // ---------- SFX ----------
+  shoot()   { if (!this.ctx) return; this.blip(this.ctx.currentTime, 900, 0.12, 'square', this.sfxGain, 0.22, 180); },
+  explosion(){ this.noise(this.ctx ? this.ctx.currentTime : 0, 0.35, 0.4, 900);
+               if (this.ctx) this.blip(this.ctx.currentTime, 120, 0.3, 'sawtooth', this.sfxGain, 0.18, 40); },
+  pickup()  { if (!this.ctx) return; const t=this.ctx.currentTime;
+              this.blip(t, this.mtof(72), 0.10, 'triangle', this.sfxGain, 0.22);
+              this.blip(t+0.09, this.mtof(79), 0.14, 'triangle', this.sfxGain, 0.22); },
+  gameOver(){ if (!this.ctx) return; this.stopMusic(); const t=this.ctx.currentTime;
+              [57,53,50,45].forEach((m,i)=> this.blip(t+i*0.22, this.mtof(m), 0.42, 'sawtooth', this.sfxGain, 0.24));
+              this.blip(t+0.9, this.mtof(33), 1.3, 'sine', this.sfxGain, 0.30); },
+  win()     { if (!this.ctx) return; this.stopMusic(); const t=this.ctx.currentTime;
+              [60,64,67,72,76].forEach((m,i)=> this.blip(t+i*0.13, this.mtof(m), 0.34, 'square', this.sfxGain, 0.22));
+              [60,64,67,72].forEach(m => this.blip(t+0.66, this.mtof(m), 1.5, 'triangle', this.sfxGain, 0.16)); }
+};
+
 class MainScene extends Phaser.Scene {
   constructor() { super('main'); }
 
@@ -76,12 +192,22 @@ class MainScene extends Phaser.Scene {
     this.key2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
     this.key3 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
 
+    // ---------- áudio: destrava no 1º gesto e toca a música de menu ----------
+    const armAudio = () => {
+      AudioSys.init();
+      if (AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
+      if (this.state === 'menu' && !AudioSys.track) AudioSys.startTrack(AudioSys.menuTrack);
+    };
+    this.input.keyboard.on('keydown', armAudio);
+    this.input.on('pointerdown', armAudio);
+    this.input.keyboard.on('keydown-M', () => AudioSys.toggleMute());
+
     // ---------- HUD ----------
     this.hudGfx = this.add.graphics().setDepth(10);
     this.shipLabel = this.add.text(14,700,'CAPININHA-1', {fontFamily:'monospace',fontSize:11,color:'#5577aa'}).setOrigin(0,1).setDepth(10);
     this.scoreText = this.add.text(W-14,14,'',{fontFamily:'monospace',fontSize:16,color:'#ffffff'}).setOrigin(1,0).setDepth(10);
     this.livesText = this.add.text(14,40,'',{fontFamily:'monospace',fontSize:16,color:'#ffffff'}).setDepth(10);
-    this.controlsText = this.add.text(W/2,H-14,'← → desliza   ↑ acelera   ↓ reduz empuxo   SPACE atira (gasta combustível)',
+    this.controlsText = this.add.text(W/2,H-14,'← → desliza   ↑ acelera   ↓ reduz empuxo   SPACE atira   M muta',
       {fontFamily:'monospace',fontSize:10,color:'#889'}).setOrigin(0.5,1).setDepth(10);
 
     // ---------- telas de estado ----------
@@ -209,17 +335,20 @@ class MainScene extends Phaser.Scene {
     this.winText.setVisible(false);
     this.moonSprite.setVisible(false).setScale(1).setPosition(W/2,60);
     this.updateHUD();
+    AudioSys.startTrack(AudioSys.gameTrack);
   }
 
   gameOver(reason) {
     this.state = 'gameover';
     this.player.setVisible(false);
+    AudioSys.gameOver();
     this.gameOverText.setText(`A MISSÃO SE PERDEU\n${reason}\n\nDistância: ${Math.floor(this.distance)}\nScore: ${Math.floor(this.score)}\n\nMais um destroço no caminho de quem vier depois.\n\n[1] Fácil  [2] Médio  [3] Difícil`).setVisible(true);
   }
 
   win() {
     this.state = 'win';
     this.player.setVisible(false);
+    AudioSys.win();
     this.moonSprite.setVisible(true).setScale(2).setPosition(W/2,H/2-80);
     this.winText.setText(`A CAPININHA-1 CHEGOU NA LUA\n\nDificuldade: ${this.diff.label}\nScore: ${Math.floor(this.score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`).setVisible(true);
   }
@@ -286,6 +415,7 @@ class MainScene extends Phaser.Scene {
     if (this.invulnerable || this.state!=='playing') return;
     this.lives--;
     this.updateHUD();
+    AudioSys.explosion();
     if (this.lives<=0) { this.gameOver('Impacto fatal no cinturão de meteoros.'); return; }
     this.invulnerable = true;
     this.player.setTint(0xff4444);
@@ -297,9 +427,9 @@ class MainScene extends Phaser.Scene {
   hitWall(player,wall) { this.damagePlayer(); }
   hitEnemyBody(player,enemy) { enemy.destroy(); this.damagePlayer(); }
   hitByDroneBullet(player,bullet) { bullet.destroy(); this.damagePlayer(); }
-  collectFuelCell(player,cell) { cell.destroy(); this.fuel=Math.min(100,this.fuel+40); this.score+=15; this.updateHUD(); }
-  destroyMeteor(bullet,meteor) { bullet.destroy(); meteor.destroy(); this.score+=10; }
-  destroyDrone(bullet,drone) { bullet.destroy(); drone.destroy(); this.score+=25; }
+  collectFuelCell(player,cell) { cell.destroy(); this.fuel=Math.min(100,this.fuel+40); this.score+=15; AudioSys.pickup(); this.updateHUD(); }
+  destroyMeteor(bullet,meteor) { bullet.destroy(); meteor.destroy(); this.score+=10; AudioSys.explosion(); }
+  destroyDrone(bullet,drone) { bullet.destroy(); drone.destroy(); this.score+=25; AudioSys.explosion(); }
 
   // ======================================================
   // HUD
@@ -370,6 +500,7 @@ class MainScene extends Phaser.Scene {
       b.body.velocity.y = -420;
       this.shootCd = 220;
       this.fuel -= 0.8;
+      AudioSys.shoot();
     }
 
     if (this.fuel<=0) { this.fuel=0; this.updateHUD(); this.gameOver('Sem combustível — à deriva no vácuo.'); return; }
