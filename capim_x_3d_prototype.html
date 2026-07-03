@@ -32,6 +32,17 @@
   }
   .hud-btn:hover { border-color:rgba(150,200,255,0.85); box-shadow:0 0 20px rgba(90,150,255,0.45); }
   .hud-btn:active { transform:scale(0.94); }
+  .pause-section { display:flex; flex-direction:column; align-items:center; width:100%; }
+  .confirm-warn {
+    font-family:'Exo 2', sans-serif; font-size:13px; color:#ffb3b3; text-align:center;
+    margin:4px 0 16px; max-width:280px; line-height:1.5;
+  }
+  .btn-danger {
+    display:flex; align-items:center; gap:10px; margin-top:4px; padding:13px 26px; font-size:14px;
+    color:#ffdede; border-color:rgba(255,90,90,0.5);
+    background:linear-gradient(160deg, rgba(150,40,40,0.45), rgba(80,20,20,0.5));
+  }
+  .btn-danger:hover { box-shadow:0 0 26px rgba(255,70,70,0.5); border-color:rgba(255,120,120,0.85); }
   #livesText   { position:absolute; left:14px; top:40px; font-size:16px; }
   #controlsText{ position:absolute; left:50%; bottom:6px; transform:translateX(-50%); font-size:10px; color:#889; white-space:nowrap; }
   #fuelBarBg   { position:absolute; left:14px; top:14px; width:168px; height:15px; background:#222233; border:1px solid rgba(255,255,255,0.6); }
@@ -463,9 +474,16 @@
 <div id="pauseOverlay" class="overlay center-panel" style="display:none">
   <div class="menu pause-menu">
     <div class="select-title">⏸ MISSÃO EM PAUSA</div>
-    <button class="btn btn-primary" id="btnResume"><span class="btn-icon">▶</span><span>CONTINUAR</span></button>
-    <button class="btn btn-back" id="btnPauseMenu"><span class="btn-icon">🛰️</span><span>VOLTAR AO MENU</span></button>
-    <div class="menu-hint">ESC ou P — continuar</div>
+    <div class="pause-section" id="pauseMain">
+      <button class="btn btn-primary" id="btnResume"><span class="btn-icon">▶</span><span>CONTINUAR</span></button>
+      <button class="btn btn-back" id="btnPauseMenu"><span class="btn-icon">🛰️</span><span>VOLTAR AO MENU</span></button>
+      <div class="menu-hint">ESC ou P — continuar</div>
+    </div>
+    <div class="pause-section" id="pauseConfirm" style="display:none">
+      <div class="confirm-warn">⚠️ Você perderá o progresso desta missão.</div>
+      <button class="btn btn-danger" id="btnConfirmMenu"><span class="btn-icon">🛰️</span><span>SIM, VOLTAR AO MENU</span></button>
+      <button class="btn btn-primary" id="btnCancelMenu"><span class="btn-icon">↩</span><span>CANCELAR</span></button>
+    </div>
   </div>
 >>>>>>> c08cbf6 (Adiciona pausa e voltar ao menu durante a gameplay)
 </div>
@@ -2374,7 +2392,13 @@ addEventListener('keydown', e => {
   }
 
   if (state === 'playing' && (e.code === 'Escape' || e.code === 'KeyP')) { pauseGame(); return; }
-  if (state === 'paused') { if (e.code === 'Escape' || e.code === 'KeyP') resumeGame(); return; }
+  if (state === 'paused') {
+    if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (pauseConfirm.style.display !== 'none') showPauseMain();  // na confirmação, ESC cancela
+      else resumeGame();
+    }
+    return;
+  }
 
   if (state === 'intro') { if (!introStarted) beginIntro(); else goToTitle(); return; }
   if (state === 'playing' && (e.code === 'Escape' || e.code === 'KeyP')) { uiBlip(620); pauseGame(); return; }
@@ -2434,9 +2458,13 @@ renderEconomyUI();
 const pauseOverlay = document.getElementById('pauseOverlay');
 const btnPause = document.getElementById('btnPause');
 
+const pauseMain = document.getElementById('pauseMain');
+const pauseConfirm = document.getElementById('pauseConfirm');
+function showPauseMain() { pauseMain.style.display = 'flex'; pauseConfirm.style.display = 'none'; }
 function pauseGame() {
   if (state !== 'playing') return;
   state = 'paused';
+  showPauseMain();               // sempre abre na tela principal (não na confirmação)
   pauseOverlay.style.display = 'flex';
 }
 function resumeGame() {
@@ -2459,7 +2487,13 @@ function returnToMenu() {
 
 btnPause.addEventListener('click', () => { armAudio(); uiBlip(500); pauseGame(); });
 document.getElementById('btnResume').addEventListener('click', () => { armAudio(); uiBlip(720); resumeGame(); });
-document.getElementById('btnPauseMenu').addEventListener('click', () => { armAudio(); uiBlip(420); returnToMenu(); });
+// "voltar ao menu" pede confirmação antes (o progresso da missão se perde)
+document.getElementById('btnPauseMenu').addEventListener('click', () => {
+  armAudio(); uiBlip(360);
+  pauseMain.style.display = 'none'; pauseConfirm.style.display = 'flex';
+});
+document.getElementById('btnCancelMenu').addEventListener('click', () => { uiBlip(600); showPauseMain(); });
+document.getElementById('btnConfirmMenu').addEventListener('click', () => { uiBlip(300); returnToMenu(); });
 
 // ---------- câmera em terceira pessoa ----------
 const camOffset = new THREE.Vector3(0, 7.5, 9.5);
