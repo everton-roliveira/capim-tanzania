@@ -1049,9 +1049,12 @@ const wreckBodyGeo = new THREE.CylinderGeometry(0.24,0.34,0.8,8);
 const wreckNozzleGeo = new THREE.ConeGeometry(0.22,0.3,8);
 const wreckPanelGeo = new THREE.BoxGeometry(0.62,0.05,0.34);
 const wreckAntennaGeo = new THREE.CylinderGeometry(0.018,0.018,0.5,6);
+const wreckGunGeo = new THREE.CylinderGeometry(0.035,0.045,0.52,7);
+const wreckWarningGeo = new THREE.SphereGeometry(0.065,8,6);
 const wreckBodyMat = new THREE.MeshStandardMaterial({ color:0x625b56, metalness:0.48, roughness:0.72, flatShading:true });
 const wreckScorchMat = new THREE.MeshStandardMaterial({ color:0x171719, metalness:0.3, roughness:0.94 });
 const wreckPanelMat = new THREE.MeshStandardMaterial({ color:0x263b59, metalness:0.55, roughness:0.36 });
+const wreckWarningMat = new THREE.MeshStandardMaterial({ color:0xff3344,emissive:0xbb0018,emissiveIntensity:2.2,roughness:0.25 });
 // Célula de combustível — tanque pressurizado (conceito 1 de
 // docs/combustivel-foguete-3d.jsx): cilindro metálico com tampas
 // arredondadas, faixas de alerta e visor de líquido brilhante.
@@ -1085,6 +1088,7 @@ let corridorCenter = 0;
 let corridorHalf = diff.corridorHalf;
 let nextSegmentZ = 0;
 let meteorCd = 3, droneCd = 7, fuelCd = 8;
+let wreckSpawnCount = 0;
 let radioTimer = 0, radioNextSound = Math.random()*2 + 2;
 
 const segments = [];
@@ -1332,21 +1336,30 @@ function spawnMeteor(x, z) {
 }
 
 function spawnDrone(x, z) {
+  // O primeiro destroço de cada partida é armado; depois, um em cada três.
+  // Assim o perigo aparece em todos os níveis sem transformar todo lixo em inimigo.
+  const armed=(wreckSpawnCount++%3)===0;
   const group = new THREE.Group();
   const body=new THREE.Mesh(wreckBodyGeo,wreckBodyMat); body.rotation.x=Math.PI/2;
   const nozzle=new THREE.Mesh(wreckNozzleGeo,wreckScorchMat); nozzle.rotation.x=Math.PI/2; nozzle.position.z=0.52;
   const panel=new THREE.Mesh(wreckPanelGeo,wreckPanelMat); panel.position.set(0.38,0,-0.08); panel.rotation.z=THREE.MathUtils.randFloat(-0.5,0.5);
   const antenna=new THREE.Mesh(wreckAntennaGeo,wreckScorchMat); antenna.position.set(-0.22,0.2,-0.25); antenna.rotation.z=0.8;
   group.add(body,nozzle,panel,antenna);
+  if(armed){
+    [-0.1,0.1].forEach(px=>{const gun=new THREE.Mesh(wreckGunGeo,wreckScorchMat);gun.rotation.x=Math.PI/2;gun.position.set(px,-0.18,0.62);group.add(gun);});
+    const warning=new THREE.Mesh(wreckWarningGeo,wreckWarningMat);warning.position.set(0,0.25,0.22);group.add(warning);
+  }
   group.scale.setScalar(THREE.MathUtils.randFloat(0.85,1.25));
-  group.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);
+  group.rotation.set(armed?0:Math.random()*Math.PI,armed?0:Math.random()*Math.PI,Math.random()*Math.PI);
   group.position.set(x,THREE.MathUtils.randFloat(-0.45,0.45),z);
   group.traverse(obj=>{ if(obj.isMesh){ obj.castShadow=true; obj.receiveShadow=true; } });
   scene.add(group);
   drones.push({
-    mesh:group,
+    mesh:group,armed,fireCd:THREE.MathUtils.randFloat(1300,2200),
     velocity:new THREE.Vector3(THREE.MathUtils.randFloat(-0.32,0.32),THREE.MathUtils.randFloat(-0.1,0.1),THREE.MathUtils.randFloat(0.35,1.1)),
-    angularVelocity:new THREE.Vector3(THREE.MathUtils.randFloat(-1.2,1.2),THREE.MathUtils.randFloat(-1.2,1.2),THREE.MathUtils.randFloat(-1.2,1.2))
+    angularVelocity:armed
+      ?new THREE.Vector3(0,0,THREE.MathUtils.randFloat(-0.45,0.45))
+      :new THREE.Vector3(THREE.MathUtils.randFloat(-1.2,1.2),THREE.MathUtils.randFloat(-1.2,1.2),THREE.MathUtils.randFloat(-1.2,1.2))
   });
 }
 
@@ -1409,7 +1422,7 @@ function clearAllEntities() {
 // Materiais que só entram em cena via spawn ganham um mesh invisível de aquecimento.
 const warmup = new THREE.Group();
 warmup.visible = false;
-[[meteorGeoPool[0], meteorMats[0]], [wreckBodyGeo, wreckBodyMat], [wreckPanelGeo, wreckPanelMat],
+[[meteorGeoPool[0], meteorMats[0]], [wreckBodyGeo, wreckBodyMat], [wreckPanelGeo, wreckPanelMat], [wreckWarningGeo, wreckWarningMat],
  [tankBodyGeo, tankBodyMat], [tankCapGeo, tankBodyMat], [tankStripeGeo, tankStripeMat],
  [tankWindowGeo, tankWindowMat], [tankValveGeo, tankValveMat], [tankWheelGeo, tankWheelMat],
  [bulletPlayerGeo, bulletPlayerMat], [bulletDroneGeo, bulletDroneMat]]
@@ -1570,7 +1583,8 @@ crawlText.innerHTML =
   'de missões já tentaram chegar — nenhuma voltou.\n\n'+
   'Seus destroços viraram parte do cinturão de\n'+
   'meteoros: módulos, bocais e painéis partidos\n'+
-  'ainda cruzam a rota, à deriva no espaço.\n\n'+
+  'ainda cruzam a rota, à deriva no espaço. Alguns\n'+
+  'módulos armados ainda têm energia e disparam.\n\n'+
   'A Capim-x carrega um canhão de mineração\n'+
   'adaptado: abre caminho pelos meteoros e destroços.\n'+
   'Não é uma nave de guerra — cada disparo\n'+
@@ -1611,6 +1625,7 @@ function startGame(diffKey) {
   scrollSpeed = SHIP_BASE.baseScroll;
   corridorCenter = 0; corridorHalf = diff.corridorHalf;
   meteorCd = 3; droneCd = 7; fuelCd = 8;
+  wreckSpawnCount = 0;
   invulnerable = false; invulnerableUntil = 0;
   vx = 0; shootCd = 0;
   gravityDir = Math.random() < 0.5 ? 1 : -1;
@@ -2452,6 +2467,10 @@ function animate() {
     d.mesh.rotation.x+=d.angularVelocity.x*dt;
     d.mesh.rotation.y+=d.angularVelocity.y*dt;
     d.mesh.rotation.z+=d.angularVelocity.z*dt;
+    if(d.armed){
+      d.fireCd-=dt*1000;
+      if(d.fireCd<=0){fireDroneBullet(d);d.fireCd=THREE.MathUtils.randFloat(1800,3000);}
+    }
     if (d.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(d.mesh); drones.splice(i,1); }
   }
   for (const f of fuelCells) { f.mesh.position.y = Math.sin((now+f.phase)/400)*0.2; f.mesh.rotation.y += 1.4*dt; }

@@ -36,7 +36,9 @@ O problema é que **quase todo mundo explode no meio do caminho**. O cinturão
 entre a Terra e a Lua hoje é um cemitério de missões: carcaças, tanques vazando,
 módulos partidos e painéis solares que seguem à deriva. Não são drones: são
 **pedaços dos foguetes que não conseguiram chegar**, tombando pelo espaço e
-cruzando a rota de quem tenta depois.
+cruzando a rota de quem tenta depois. Alguns módulos de armamento ainda têm
+energia e disparam às cegas quando detectam movimento — o último reflexo de
+naves que já perderam a missão.
 
 ## Onde entra a Capim
 A Capim passou anos financiando o sorriso do país, uma consulta por vez. Quando a
@@ -62,6 +64,7 @@ Ou seja: você chega na Lua **em cima do fracasso dos outros**. Poético.
 |-----------------------------|----------------------------------------------------------|
 | Cinturão de asteroides      | Cemitério das missões que fracassaram                    |
 | Destroços à deriva          | Peças dos foguetes que não conseguiram chegar à Lua      |
+| Módulos armados             | Sistemas de defesa avariados que ainda disparam           |
 | Células de combustível      | Tanques deixados por quem não voltou (reabastecer)       |
 | Separação de estágios       | Peças recuperadas dos destroços (foguete melhora)        |
 | Pousar na Lua               | Garantir a esmaltita e devolver o sorriso à Terra        |
