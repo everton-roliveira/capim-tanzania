@@ -708,8 +708,22 @@ const droneBodyGeo = new THREE.SphereGeometry(0.42, 8, 6);
 const droneMat = new THREE.MeshStandardMaterial({ color:0x667788, flatShading:true });
 const droneSensorGeo = new THREE.SphereGeometry(0.14, 6, 6);
 const droneSensorMat = new THREE.MeshStandardMaterial({ color:0xff3344, emissive:0x991122, emissiveIntensity:0.8 });
-const fuelCellMat = new THREE.MeshStandardMaterial({ color:0x33cc88, emissive:0x114433, emissiveIntensity:0.5, flatShading:true });
-const fuelCellGeo = new THREE.OctahedronGeometry(0.4, 0);
+// Célula de combustível — tanque pressurizado (conceito 1 de
+// docs/combustivel-foguete-3d.jsx): cilindro metálico com tampas
+// arredondadas, faixas de alerta e visor de líquido brilhante.
+// Geometrias compartilhadas (mesmo motivo do rockGeoPool: evitar
+// alocação por spawn) e sem PointLight por instância (custo de perf).
+const tankBodyMat = new THREE.MeshStandardMaterial({ color:0xb8bec8, roughness:0.3, metalness:0.9 });
+const tankBodyGeo = new THREE.CylinderGeometry(0.33, 0.33, 0.84, 16);
+const tankCapGeo = new THREE.SphereGeometry(0.33, 16, 10, 0, Math.PI*2, 0, Math.PI/2);
+const tankStripeMat = new THREE.MeshStandardMaterial({ color:0xf2b705, roughness:0.5, metalness:0.2 });
+const tankStripeGeo = new THREE.CylinderGeometry(0.339, 0.339, 0.084, 16);
+const tankWindowMat = new THREE.MeshStandardMaterial({ color:0x00e5ff, emissive:0x00c8e8, emissiveIntensity:1.6, roughness:0.1 });
+const tankWindowGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.42, 12);
+const tankValveMat = new THREE.MeshStandardMaterial({ color:0x8a3030, roughness:0.4, metalness:0.6 });
+const tankValveGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.18, 10);
+const tankWheelMat = new THREE.MeshStandardMaterial({ color:0xcc4444, roughness:0.4, metalness:0.5 });
+const tankWheelGeo = new THREE.TorusGeometry(0.108, 0.021, 8, 16);
 const bulletPlayerGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6);
 const bulletPlayerMat = new THREE.MeshBasicMaterial({ color:0xffff44 });
 const bulletDroneGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6);
@@ -837,10 +851,26 @@ function spawnDrone(x, z) {
 }
 
 function spawnFuelCell(x, z) {
-  const mesh = new THREE.Mesh(fuelCellGeo, fuelCellMat);
-  mesh.position.set(x, 0, z);
-  scene.add(mesh);
-  fuelCells.push({ mesh, phase: Math.random()*1000 });
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(tankBodyGeo, tankBodyMat));
+  const top = new THREE.Mesh(tankCapGeo, tankBodyMat); top.position.y = 0.42;
+  group.add(top);
+  const bottom = new THREE.Mesh(tankCapGeo, tankBodyMat); bottom.rotation.x = Math.PI; bottom.position.y = -0.42;
+  group.add(bottom);
+  [-0.27, 0.27].forEach(y => {
+    const stripe = new THREE.Mesh(tankStripeGeo, tankStripeMat); stripe.position.y = y;
+    group.add(stripe);
+  });
+  const win = new THREE.Mesh(tankWindowGeo, tankWindowMat);
+  win.position.set(0, 0, 0.25);
+  group.add(win);
+  const valve = new THREE.Mesh(tankValveGeo, tankValveMat); valve.position.y = 0.75;
+  group.add(valve);
+  const wheel = new THREE.Mesh(tankWheelGeo, tankWheelMat); wheel.rotation.x = Math.PI/2; wheel.position.y = 0.85;
+  group.add(wheel);
+  group.position.set(x, 0, z);
+  scene.add(group);
+  fuelCells.push({ mesh:group, phase: Math.random()*1000 });
 }
 
 function fireDroneBullet(d) {
@@ -879,7 +909,9 @@ for (let i=0;i<20;i++) { buildBeltSegment(nextSegmentZ); nextSegmentZ -= CORRIDO
 const warmup = new THREE.Group();
 warmup.visible = false;
 [[meteorGeo, meteorMat], [droneBodyGeo, droneMat], [droneSensorGeo, droneSensorMat],
- [fuelCellGeo, fuelCellMat], [bulletPlayerGeo, bulletPlayerMat], [bulletDroneGeo, bulletDroneMat]]
+ [tankBodyGeo, tankBodyMat], [tankCapGeo, tankBodyMat], [tankStripeGeo, tankStripeMat],
+ [tankWindowGeo, tankWindowMat], [tankValveGeo, tankValveMat], [tankWheelGeo, tankWheelMat],
+ [bulletPlayerGeo, bulletPlayerMat], [bulletDroneGeo, bulletDroneMat]]
   .forEach(([geo, mat]) => warmup.add(new THREE.Mesh(geo, mat)));
 scene.add(warmup);
 renderer.compile(scene, camera);
@@ -1392,7 +1424,7 @@ function animate() {
     if (d.fireCd <= 0) { fireDroneBullet(d); d.fireCd = THREE.MathUtils.randFloat(1500,3000); }
     if (d.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(d.mesh); drones.splice(i,1); }
   }
-  for (const f of fuelCells) { f.mesh.position.y = Math.sin((now+f.phase)/400)*0.2; }
+  for (const f of fuelCells) { f.mesh.position.y = Math.sin((now+f.phase)/400)*0.2; f.mesh.rotation.y += 1.4*dt; }
   for (let i=fuelCells.length-1;i>=0;i--) {
     const f = fuelCells[i];
     if (f.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(f.mesh); fuelCells.splice(i,1); }
