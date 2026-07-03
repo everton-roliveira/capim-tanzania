@@ -22,9 +22,9 @@ O espaço não perdoa: a gravidade puxa e o foguete desliza, mas o comando de fr
 
 A missão é simples de explicar e difícil de cumprir: **atire, desvie, abasteça, chegue.**
 
-4. **Evolução para 3D**
+4. **Eventos Aleatórios**
 
-O jogo nasceu em 2D. Já tínhamos feito os efeitos sonoros quando surgiu o primeiro evento aleatório do jogo — e a partir dele decidimos transformar o jogo em 3D.
+- **Evolução para 3D** — o jogo nasceu em 2D. Já tínhamos feito os efeitos sonoros quando surgiu o primeiro evento aleatório do jogo — e a partir dele decidimos transformar o jogo em 3D.
 
 5. **Stack**
 
