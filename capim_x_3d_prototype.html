@@ -143,16 +143,18 @@ const SHIP_BASE = {
 
 const CORRIDOR = {
   segmentLength: 10,      // 1 "linha" — equivalente aos 32px do original
-  beltWidth: 3.2,         // banda estreita e densa — lê como barreira, não como poeira espalhada pelo mapa
+  beltWidth: 3.2,         // zona densa junto à borda (também referência do clamp de segurança)
   beltOverlap: 0.35,      // só uma borda irregular (aspecto orgânico), sem invadir muito o corredor
-  rocksPerSide: 9,
-  rockMinR: 0.55,
-  rockMaxR: 1.15,
   driftStep: 1.1,
   maxCenterOffset: 7,
   aheadDistance: 150,
   behindMargin: 20,
   hardLimitMargin: 6,     // clamp de segurança bem além da nuvem, invisível
+  // O cinturão é um campo com gradiente de densidade, não uma parede:
+  // borda densa e irregular → dispersão média → gigantes esparsos ao fundo.
+  edgeRocks: [4, 6],      // pedras junto à borda (r 0.5–1.15)
+  midRocks:  [2, 4],      // dispersão média, mais espalhada em Y (r 0.4–1.7)
+  farChance: 0.55,        // chance de 1 gigante de fundo por lado (r 1.8–4)
 };
 
 /* =======================================================
@@ -346,6 +348,66 @@ scene.add(moon);
   const mat = new THREE.PointsMaterial({ color:0xffffff, size:0.6, sizeAttenuation:true });
   scene.add(new THREE.Points(geo, mat));
 })();
+
+// ---------- cometa de fundo (puramente decorativo) ----------
+// Cruza o céu na diagonal de tempos em tempos, inclusive no menu.
+// Materiais com fog:false — ele vive longe demais, o fog o apagaria.
+const comet = (function(){
+  const g = new THREE.Group();
+  const head = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(1.4, 1),
+    new THREE.MeshBasicMaterial({ color:0xdfeeff, fog:false })
+  );
+  const glow = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(2.4, 1),
+    new THREE.MeshBasicMaterial({ color:0x88bbff, transparent:true, opacity:0.25, blending:THREE.AdditiveBlending, depthWrite:false, fog:false })
+  );
+  const tailGeo = new THREE.ConeGeometry(1.9, 30, 8, 1, true);
+  tailGeo.translate(0, 15, 0); // base do cone na cabeça, cauda estendendo em +Y
+  const tail = new THREE.Mesh(
+    tailGeo,
+    new THREE.MeshBasicMaterial({ color:0x6699ff, transparent:true, opacity:0.22, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, fog:false })
+  );
+  g.add(head, glow, tail);
+  g.visible = false;
+  scene.add(g);
+  return { g, tail, vel:new THREE.Vector3(), active:false, nextAt:5 }; // 1º cometa ~5s após o load
+})();
+
+function updateComet(dt) {
+  const elapsed = performance.now()/1000;
+  if (!comet.active) {
+    if (elapsed >= comet.nextAt) {
+      const dirX = Math.random() < 0.5 ? 1 : -1;
+      // a câmera olha ~30° para baixo: o "céu" visível é uma faixa estreita
+      // logo acima do corredor — o cometa cruza dentro dela, ao fundo
+      comet.g.position.set(
+        -dirX*130,
+        THREE.MathUtils.randFloat(6, 16),
+        ship.position.z - THREE.MathUtils.randFloat(180, 280)
+      );
+      comet.vel.set(
+        dirX*THREE.MathUtils.randFloat(20, 30),
+        THREE.MathUtils.randFloat(-1.5, 1.5),
+        THREE.MathUtils.randFloat(-6, -2)
+      );
+      // cauda aponta para longe do sol (aqui: oposta ao movimento)
+      comet.tail.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0,1,0),
+        comet.vel.clone().negate().normalize()
+      );
+      comet.active = true;
+      comet.g.visible = true;
+    }
+    return;
+  }
+  comet.g.position.addScaledVector(comet.vel, dt);
+  if (Math.abs(comet.g.position.x) > 150) {
+    comet.active = false;
+    comet.g.visible = false;
+    comet.nextAt = elapsed + THREE.MathUtils.randFloat(16, 34);
+  }
+}
 
 // ---------- nave (foguete multi-estágio) ----------
 // A Capim-X agora é um foguete de verdade: módulo de comando na ponta,
@@ -555,19 +617,35 @@ function buildBeltSegment(z) {
 
   const rocks = [];
   [[leftEdge,-1], [rightEdge,1]].forEach(([edge,dir]) => {
-    for (let i=0; i<CORRIDOR.rocksPerSide; i++) {
-      const r = THREE.MathUtils.randFloat(CORRIDOR.rockMinR, CORRIDOR.rockMaxR);
-      const depth = THREE.MathUtils.randFloat(-CORRIDOR.beltOverlap, CORRIDOR.beltWidth);
-      const x = edge + dir*depth;
-      const y = THREE.MathUtils.randFloat(-3.4, 3.4);
-      const zz = z + THREE.MathUtils.randFloat(-CORRIDOR.segmentLength/2, CORRIDOR.segmentLength/2);
+    const rand = THREE.MathUtils.randFloat;
+    const halfSeg = CORRIDOR.segmentLength/2;
+    // pedra irregular: escala levemente diferente por eixo + rotação lenta própria
+    const addRock = (depth, y, r) => {
       const mesh = new THREE.Mesh(rockGeoPool[(Math.random()*rockGeoPool.length)|0], rockMats[(Math.random()*rockMats.length)|0]);
-      mesh.scale.setScalar(r);
-      mesh.position.set(x, y, zz);
+      mesh.scale.set(r*rand(0.75,1.25), r*rand(0.75,1.25), r*rand(0.75,1.25));
+      mesh.position.set(edge + dir*depth, y, z + rand(-halfSeg, halfSeg));
       mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
-      mesh.userData.r = r;
+      mesh.userData.r = r;                 // colisão usa o raio nominal (levemente a favor do jogador)
+      mesh.userData.spin = rand(0.08, 0.45) * (Math.random()<0.5 ? -1 : 1);
+      mesh.userData.spinAxis = (Math.random()*3)|0; // 0=x 1=y 2=z
       scene.add(mesh);
       rocks.push(mesh);
+    };
+
+    // borda: aglomerado denso e irregular (concentrado perto do corredor)
+    const nEdge = THREE.MathUtils.randInt(CORRIDOR.edgeRocks[0], CORRIDOR.edgeRocks[1]);
+    for (let i=0; i<nEdge; i++) {
+      const depth = -CORRIDOR.beltOverlap + Math.pow(Math.random(), 1.6) * CORRIDOR.beltWidth;
+      addRock(depth, rand(-3.4, 3.4), rand(0.5, 1.15));
+    }
+    // dispersão média: menos pedras, mais espalhadas (inclusive em altura)
+    const nMid = THREE.MathUtils.randInt(CORRIDOR.midRocks[0], CORRIDOR.midRocks[1]);
+    for (let i=0; i<nMid; i++) {
+      addRock(rand(CORRIDOR.beltWidth, 7), rand(-5.5, 5.5), rand(0.4, 1.7));
+    }
+    // fundo: gigante ocasional, longe e deslocado — dá profundidade ao campo
+    if (Math.random() < CORRIDOR.farChance) {
+      addRock(rand(7, 17), rand(-9, 9), rand(1.8, 4));
     }
   });
 
@@ -662,6 +740,17 @@ function clearAllEntities() {
 
 // preview inicial do corredor (atrás do menu)
 for (let i=0;i<20;i++) { buildBeltSegment(nextSegmentZ); nextSegmentZ -= CORRIDOR.segmentLength; }
+
+// pré-compila todos os shaders — sem isso, a 1ª aparição de cada objeto
+// (cometa, lua, balas, meteoros...) custaria uma trava no meio do jogo.
+// Materiais que só entram em cena via spawn ganham um mesh invisível de aquecimento.
+const warmup = new THREE.Group();
+warmup.visible = false;
+[[meteorGeo, meteorMat], [droneBodyGeo, droneMat], [droneSensorGeo, droneSensorMat],
+ [fuelCellGeo, fuelCellMat], [bulletPlayerGeo, bulletPlayerMat], [bulletDroneGeo, bulletDroneMat]]
+  .forEach(([geo, mat]) => warmup.add(new THREE.Mesh(geo, mat)));
+scene.add(warmup);
+renderer.compile(scene, camera);
 
 // ---------- dano / vida ----------
 const flashEl = document.getElementById('flash');
@@ -935,6 +1024,8 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
 
+  updateComet(dt); // roda em qualquer estado — o cometa também cruza o céu do menu
+
   if (state !== 'playing') {
     renderer.render(scene, camera);
     return;
@@ -1017,6 +1108,16 @@ function animate() {
   }
   while (segments.length && segments[0].z > ship.position.z + CORRIDOR.behindMargin) {
     removeBeltSegment(segments.shift());
+  }
+
+  // pedras do cinturão tombam devagar no próprio eixo — campo vivo, não parede
+  for (const seg of segments) {
+    for (const rock of seg.rocks) {
+      const u = rock.userData;
+      if (u.spinAxis === 0) rock.rotation.x += u.spin*dt;
+      else if (u.spinAxis === 1) rock.rotation.y += u.spin*dt;
+      else rock.rotation.z += u.spin*dt;
+    }
   }
 
   for (let i=meteors.length-1;i>=0;i--) {
