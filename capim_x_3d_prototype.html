@@ -2001,6 +2001,9 @@ const astronautVisorMat = new THREE.MeshPhysicalMaterial({
 const astronautPackMat = new THREE.MeshStandardMaterial({ color:0xb8bec5, roughness:0.8, metalness:0.12 });
 let astronaut=null, astronautParts=null, astronautT=0, astronautPlanted=false;
 const ASTRONAUT_DURATION=8;
+// O módulo final mede ~1,55 unidade; esta escala deixa o astronauta com
+// ~0,95 unidade de altura (relação próxima de 1,65:1 entre cápsula e pessoa).
+const ASTRONAUT_SCALE=0.54;
 const astronautExit=new THREE.Vector3(), astronautGround=new THREE.Vector3(), astronautFlagPos=new THREE.Vector3();
 const astronautCamPos=new THREE.Vector3(), astronautLook=new THREE.Vector3();
 
@@ -2047,7 +2050,7 @@ function buildAstronaut() {
   const foldedFlag=new THREE.Mesh(new THREE.PlaneGeometry(0.42,0.28),flagClothMat);
   foldedFlag.position.set(0.21,0.66,0); carriedPole.add(foldedFlag); g.add(carriedPole);
 
-  g.scale.setScalar(0.82);
+  g.scale.setScalar(ASTRONAUT_SCALE);
   g.traverse(obj=>{ if(obj.isMesh){ obj.castShadow=true; obj.receiveShadow=true; } });
   g.visible=false; scene.add(g);
   astronaut=g;
@@ -2068,7 +2071,7 @@ function startAstronautSequence() {
   astronautParts.carriedPole.visible=true;
   astronautExit.set(touchdown.x+0.38,touchdown.y+1.45,touchdown.z+0.08);
   astronautGround.set(touchdown.x+0.72,touchdown.y,touchdown.z+0.08);
-  astronautFlagPos.set(touchdown.x+2.18,touchdown.y,touchdown.z+0.28);
+  astronautFlagPos.set(touchdown.x+2.46,touchdown.y,touchdown.z+0.28);
   astronaut.position.copy(astronautExit);
   astronaut.rotation.set(0,Math.PI/2,0);
   astronaut.visible=true;
@@ -2124,7 +2127,7 @@ function updateAstronautSequence(dt) {
     astronautParts.rightArm.rotation.z=THREE.MathUtils.lerp(0,-2.25,p); // saudação final
   }
 
-  astronautCamPos.set(touchdown.x+5.4,touchdown.y+3.0,touchdown.z+7.4);
+  astronautCamPos.set(touchdown.x+4.6,touchdown.y+2.55,touchdown.z+6.4);
   camera.position.lerp(astronautCamPos,1-Math.exp(-2.4*dt));
   astronautLook.copy(astronaut.position); astronautLook.y+=0.9;
   camera.lookAt(astronautLook);
