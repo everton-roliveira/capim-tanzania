@@ -17,7 +17,7 @@
    CAPIM-X — ROCKET TO THE MOON
    Ano 2049. A Capim-X carrega um canhão de mineração
    adaptado — o bastante para abrir caminho pelos meteoros
-   e neutralizar drones de defesa deixados por missões
+   e romper destroços deixados por missões
    anteriores. Cada disparo consome energia: atirar também
    é uma decisão de combustível, não só de sobrevivência.
    Vibe-coded em Phaser 3, arquivo único, sem assets externos.
@@ -281,16 +281,17 @@ class MainScene extends Phaser.Scene {
       '',
       'Seus destroços viraram',
       'parte do cinturão de',
-      'meteoros, junto a drones',
-      'de defesa que ainda atacam',
-      'qualquer nave que se',
-      'aproxime.',
+      'meteoros: módulos, bocais',
+      'e painéis partidos seguem',
+      'à deriva pelo caminho.',
+      'Alguns módulos armados',
+      'ainda têm energia e atiram.',
       '',
       'A Capim-X carrega um',
       'canhão de mineração',
       'adaptado: abre caminho',
-      'pelos meteoros e',
-      'neutraliza os drones.',
+      'pelos meteoros e pelos',
+      'destroços à deriva.',
       '',
       'Não é uma nave de guerra.',
       'Cada disparo consome',
@@ -347,12 +348,18 @@ class MainScene extends Phaser.Scene {
     g.fillStyle(0x6b4f2f,1); g.fillCircle(10,10,4); g.fillCircle(21,20,3); g.fillCircle(12,22,2);
     g.generateTexture('meteor',32,32);
 
-    // Drone de defesa hostil (sistema automatizado de missão anterior)
+    // Módulo quebrado de uma missão anterior, ainda à deriva
     g.clear();
-    g.fillStyle(0x667788,1); g.fillEllipse(16,18,30,14);
-    g.fillStyle(0x445566,1); g.fillEllipse(16,12,14,10);
-    g.fillStyle(0xff3344,1); g.fillCircle(16,12,3); // sensor hostil
+    g.fillStyle(0x625b56,1); g.fillRect(10,6,12,20);
+    g.fillStyle(0x8b8178,1); g.fillTriangle(10,6,22,6,16,1);
+    g.fillStyle(0x171719,1); g.fillTriangle(10,26,22,26,16,32);
+    g.fillStyle(0x263b59,1); g.fillRect(21,10,10,7);
+    g.fillStyle(0x111216,1); g.fillRect(4,12,7,3); g.fillCircle(14,15,3);
     g.generateTexture('drone',32,32);
+    // Variante rara: módulo de armamento que ainda tem energia e dispara.
+    g.fillStyle(0x171719,1); g.fillRect(11,27,3,5); g.fillRect(18,27,3,5);
+    g.fillStyle(0xff3344,1); g.fillCircle(16,9,2);
+    g.generateTexture('droneArmed',32,32);
 
     // Bloco de parede (asteroide do cinturão)
     g.clear();
@@ -430,6 +437,7 @@ class MainScene extends Phaser.Scene {
     this.corridorCenter = W/2; this.corridorHalfWidth = this.diff.corridorHalf;
     this.rowAcc = 0;
     this.meteorCd = 100/this.diff.spawnMul; this.droneCd = 220/this.diff.spawnMul; this.fuelCd = 260;
+    this.wreckSpawnCount = 0;
     this.invulnerable = false;
     this.vx = 0; this.shootCd = 0;
     this.gravityDir = Phaser.Math.Between(0,1) ? 1 : -1;
@@ -485,7 +493,7 @@ class MainScene extends Phaser.Scene {
       this.spawnMeteor(Phaser.Math.Between(leftEdge+20,rightEdge-20), -16);
       this.meteorCd = Phaser.Math.Between(3,7)*32/this.diff.spawnMul;
     }
-    if (this.droneCd<=0 && gapSize>90) {
+    if (this.droneCd<=0 && gapSize>70) {
       this.spawnDrone(Phaser.Math.Between(leftEdge+30,rightEdge-30), -16);
       this.droneCd = Phaser.Math.Between(6,10)*32/this.diff.spawnMul;
     }
@@ -503,10 +511,13 @@ class MainScene extends Phaser.Scene {
   }
 
   spawnDrone(x,y) {
-    const d = this.droneGroup.create(x,y,'drone');
-    d.setData('baseX', x);
-    d.setData('phase', Phaser.Math.Between(0,1000));
-    d.setData('fireCd', Phaser.Math.Between(900,2200));
+    const armed=(this.wreckSpawnCount++%3)===0;
+    const d = this.droneGroup.create(x,y,armed?'droneArmed':'drone');
+    d.setAngle(Phaser.Math.Between(0,359));
+    d.setData('drift', Phaser.Math.Between(-24,24));
+    d.setData('spin', Phaser.Math.Between(-90,90));
+    d.setData('armed',armed);
+    d.setData('fireCd',Phaser.Math.Between(1300,2200));
   }
 
   spawnFuelCell(x,y) {
@@ -649,12 +660,14 @@ class MainScene extends Phaser.Scene {
     });
     this.droneGroup.children.iterate(c=>{
       if (!c) return;
-      c.setX(c.getData('baseX') + Math.sin((time+c.getData('phase'))/300)*30);
-      c.body.updateFromGameObject();
+      c.body.velocity.x = c.getData('drift');
       c.body.velocity.y = this.scrollSpeed*0.6+30;
-      let cd = c.getData('fireCd') - delta;
-      if (cd<=0) { this.fireDroneBullet(c); cd = Phaser.Math.Between(1500,3000); }
-      c.setData('fireCd', cd);
+      c.angle += c.getData('spin')*delta/1000;
+      if(c.getData('armed')){
+        let cd=c.getData('fireCd')-delta;
+        if(cd<=0){this.fireDroneBullet(c);cd=Phaser.Math.Between(1800,3000);}
+        c.setData('fireCd',cd);
+      }
       if (c.y>H+20) c.destroy();
     });
     this.playerBulletsGroup.children.iterate(c=>{ if (c && c.y<-20) c.destroy(); });
