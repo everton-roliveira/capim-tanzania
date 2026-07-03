@@ -14,6 +14,10 @@
   }
 
   #hud { position:fixed; inset:0; pointer-events:none; z-index:4; color:#fff; }
+  #hud::after {
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(ellipse at center, transparent 52%, rgba(0,0,8,0.2) 76%, rgba(0,0,5,0.62) 100%);
+  }
   #shipLabel   { position:absolute; left:14px; bottom:10px; font-size:11px; color:#5577aa; }
   #scoreText   { position:absolute; right:14px; top:14px; font-size:16px; }
   #livesText   { position:absolute; left:14px; top:40px; font-size:16px; }
@@ -340,9 +344,15 @@ const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight, 0.1, 2000
 camera.position.set(0, 9, 12);
 camera.lookAt(0, -3, -26);
 
-const renderer = new THREE.WebGLRenderer({ antialias:true });
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.physicallyCorrectLights = true;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 addEventListener('resize', () => {
@@ -351,18 +361,63 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
-scene.add(new THREE.AmbientLight(0x8899cc, 0.5));
-const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+scene.add(new THREE.AmbientLight(0x657094, 0.16));
+const sun = new THREE.DirectionalLight(0xfff4df, 2.4);
 sun.position.set(6, 12, 8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.left = sun.shadow.camera.bottom = -12;
+sun.shadow.camera.right = sun.shadow.camera.top = 12;
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 45;
+sun.shadow.bias = -0.0004;
 scene.add(sun);
+scene.add(sun.target);
+
+// Texturas PBR procedurais: continuam leves e preservam o jogo em um único HTML.
+function makeRockSurface(seed, baseColor, craterCount=12) {
+  const size=256, albedo=document.createElement('canvas'), height=document.createElement('canvas');
+  albedo.width=albedo.height=height.width=height.height=size;
+  const ac=albedo.getContext('2d'), hc=height.getContext('2d');
+  const ai=ac.createImageData(size,size), hi=hc.createImageData(size,size);
+  const base=new THREE.Color(baseColor);
+  let s=seed|0;
+  const rnd=()=>((s=Math.imul(s^s>>>15,1|s)), ((s+s^s>>>7)>>>0)/4294967296);
+  const craters=Array.from({length:craterCount},()=>({x:rnd()*size,y:rnd()*size,r:5+rnd()*24}));
+  for (let y=0;y<size;y++) for (let x=0;x<size;x++) {
+    const i=(y*size+x)*4;
+    let h=0.54 + Math.sin((x+seed)*0.075)*0.07 + Math.sin((y-seed)*0.11)*0.055
+      + Math.sin((x+y)*0.035)*0.06 + (rnd()-0.5)*0.11;
+    for (const c of craters) {
+      const dx=x-c.x, dy=y-c.y, d=Math.sqrt(dx*dx+dy*dy)/c.r;
+      if (d<1) h -= (1-d)*0.26;
+      else if (d<1.18) h += (1.18-d)*0.34;
+    }
+    h=THREE.MathUtils.clamp(h,0.12,0.92);
+    const shade=0.55+h*0.72;
+    ai.data[i]=Math.min(255,base.r*255*shade);
+    ai.data[i+1]=Math.min(255,base.g*255*shade);
+    ai.data[i+2]=Math.min(255,base.b*255*shade);
+    ai.data[i+3]=255;
+    hi.data[i]=hi.data[i+1]=hi.data[i+2]=h*255; hi.data[i+3]=255;
+  }
+  ac.putImageData(ai,0,0); hc.putImageData(hi,0,0);
+  const map=new THREE.CanvasTexture(albedo), bumpMap=new THREE.CanvasTexture(height);
+  map.encoding=THREE.sRGBEncoding;
+  [map,bumpMap].forEach(t=>{ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy()); });
+  return {map,bumpMap};
+}
+
+const moonSurface = makeRockSurface(7341, 0xb8b7b2, 22);
 
 // ---------- lua distante (narrativa) ----------
 const moon = new THREE.Mesh(
-  new THREE.SphereGeometry(40, 24, 24),
-  new THREE.MeshStandardMaterial({ color:0xdddddd, roughness:1 })
+  new THREE.SphereGeometry(40, 64, 48),
+  new THREE.MeshStandardMaterial({ map:moonSurface.map, bumpMap:moonSurface.bumpMap, bumpScale:1.8, roughness:0.98, metalness:0 })
 );
 moon.position.set(20, 30, -1800);
 moon.visible = false;
+moon.receiveShadow = true;
 scene.add(moon);
 
 // ---------- estrelas ----------
@@ -449,12 +504,12 @@ const ship = new THREE.Group();
 ship.visible = false;
 scene.add(ship);
 
-const hullMat   = new THREE.MeshStandardMaterial({ color:0xa6cd15, flatShading:true, roughness:0.6 });   // verde Capim
-const accentMat = new THREE.MeshStandardMaterial({ color:0x59399e, flatShading:true, roughness:0.8 });   // detalhes roxos
-const tankMat   = new THREE.MeshStandardMaterial({ color:0xa6cd15, flatShading:true, roughness:0.9 });
+const hullMat   = new THREE.MeshPhysicalMaterial({ color:0xa6cd15, metalness:0.35, roughness:0.32, clearcoat:0.35, clearcoatRoughness:0.28 });
+const accentMat = new THREE.MeshStandardMaterial({ color:0x59399e, metalness:0.5, roughness:0.38 });
+const tankMat   = new THREE.MeshStandardMaterial({ color:0xa6cd15, metalness:0.2, roughness:0.48 });
 const nozzleMat = new THREE.MeshStandardMaterial({ color:0x444a55, flatShading:true, metalness:0.6, roughness:0.4 });
-const windowMat = new THREE.MeshStandardMaterial({ color:0x3399ff, emissive:0x113355, emissiveIntensity:0.6 });
-const boosterTipMat = new THREE.MeshStandardMaterial({ color:0x59399e, flatShading:true, roughness:0.7 });
+const windowMat = new THREE.MeshPhysicalMaterial({ color:0x173c66, emissive:0x0b2744, emissiveIntensity:0.8, metalness:0.05, roughness:0.08, clearcoat:1 });
+const boosterTipMat = new THREE.MeshStandardMaterial({ color:0x59399e, metalness:0.35, roughness:0.4 });
 const flameMat  = new THREE.MeshBasicMaterial({ color:0xffaa33, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false });
 
 // cilindro com o eixo ao longo de Z (rBack = raio traseiro, rFront = dianteiro)
@@ -476,7 +531,7 @@ function nozzle(r, len, mat) {
   return m;
 }
 
-const shipParts = { boosters:[], stage1:null, stage2:null, flame:null };
+const shipParts = { boosters:[], stage1:null, stage2:null, flame:null, flameLight:null };
 let massMul = 1;          // <1 depois das separações: nave mais leve e ágil
 const debris = [];        // estágios ejetados tombando pelo espaço
 
@@ -538,7 +593,14 @@ function buildShip() {
   flame.rotation.x = Math.PI/2;
   ship.add(flame);
   shipParts.flame = flame;
+  const flameLight = new THREE.PointLight(0xff7a24, 12, 5, 2);
+  ship.add(flameLight);
+  shipParts.flameLight = flameLight;
   moveFlame();
+
+  ship.traverse(obj => {
+    if (obj.isMesh && obj !== shipParts.flame) { obj.castShadow=true; obj.receiveShadow=true; }
+  });
 }
 
 // reposiciona a chama no bocal do estágio ativo mais traseiro
@@ -547,6 +609,7 @@ function moveFlame() {
   if (shipParts.stage1)      shipParts.flame.position.z = 1.85;
   else if (shipParts.stage2) shipParts.flame.position.z = 1.0;
   else                       shipParts.flame.position.z = 0.34;
+  if (shipParts.flameLight) shipParts.flameLight.position.set(0,0,shipParts.flame.position.z+0.3);
 }
 
 buildShip();
@@ -601,10 +664,31 @@ function performSeparation(sep) {
 // ---------- materiais / geometrias reutilizados ----------
 // Geometrias são compartilhadas (nunca descartadas): alocar uma nova por
 // pedra/meteoro gera pressão de GC e engasgos perceptíveis durante o jogo.
-const rockMats = [0x5c3a63, 0x4a2f4f, 0x3a2340].map(c => new THREE.MeshStandardMaterial({ color:c, flatShading:true }));
+const rockColors = [0x5c4d48, 0x493d39, 0x6a5650];
+const rockSurfaces = rockColors.map((c,i)=>makeRockSurface(1200+i*811,c,10+i*2));
+const rockMats = rockSurfaces.map(s => new THREE.MeshStandardMaterial({ map:s.map, bumpMap:s.bumpMap, bumpScale:0.12, roughness:0.97, metalness:0.01 }));
 const rockGeoPool = Array.from({length:8}, () => new THREE.IcosahedronGeometry(1, 0));
-const meteorMat = new THREE.MeshStandardMaterial({ color:0x8b6f47, flatShading:true });
-const meteorGeo = new THREE.IcosahedronGeometry(0.55, 0);
+const meteorColors = [0x806b57, 0x67584d, 0x927761];
+const meteorSurfaces = meteorColors.map((c,i)=>makeRockSurface(4200+i*977,c,15+i*2));
+const meteorMats = meteorSurfaces.map(s => new THREE.MeshStandardMaterial({
+  map:s.map, bumpMap:s.bumpMap, bumpScale:0.1, flatShading:true, roughness:0.96, metalness:0.02
+}));
+// Poucas geometrias irregulares compartilhadas: variedade sem criar uma malha a cada spawn.
+const meteorGeoPool = Array.from({length:6}, (_, seed) => {
+  const geo = new THREE.IcosahedronGeometry(0.55, 2);
+  const pos = geo.attributes.position;
+  for (let i=0; i<pos.count; i++) {
+    const x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
+    // A deformação depende da posição: vértices duplicados recebem o mesmo valor
+    // e as faces continuam fechadas, sem rachaduras na malha.
+    const noise = Math.sin(x*31.7 + y*57.3 + z*91.1 + seed*17.9) * 43758.5453;
+    const deformation = 0.72 + (noise-Math.floor(noise))*0.44;
+    pos.setXYZ(i, x*deformation, y*deformation, z*deformation);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+});
 const droneBodyGeo = new THREE.SphereGeometry(0.42, 8, 6);
 const droneMat = new THREE.MeshStandardMaterial({ color:0x667788, flatShading:true });
 const droneSensorGeo = new THREE.SphereGeometry(0.14, 6, 6);
@@ -636,6 +720,91 @@ const drones = [];
 const fuelCells = [];
 const playerBullets = [];
 const droneBullets = [];
+const impactEffects = [];
+
+// Exaustão em espaço de mundo: as partículas ficam para trás enquanto a nave avança.
+const EXHAUST_COUNT = 90;
+const exhaustPositions = new Float32Array(EXHAUST_COUNT*3);
+const exhaustColors = new Float32Array(EXHAUST_COUNT*3);
+const exhaustVelocities = Array.from({length:EXHAUST_COUNT},()=>new THREE.Vector3());
+const exhaustLife = new Float32Array(EXHAUST_COUNT);
+const exhaustMaxLife = new Float32Array(EXHAUST_COUNT);
+const exhaustGeo = new THREE.BufferGeometry();
+exhaustGeo.setAttribute('position',new THREE.BufferAttribute(exhaustPositions,3));
+exhaustGeo.setAttribute('color',new THREE.BufferAttribute(exhaustColors,3));
+const exhaustPoints = new THREE.Points(exhaustGeo,new THREE.PointsMaterial({
+  size:0.16, vertexColors:true, transparent:true, opacity:0.86,
+  blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true
+}));
+exhaustPoints.frustumCulled=false;
+scene.add(exhaustPoints);
+
+function resetExhaust() {
+  exhaustLife.fill(0);
+  for (let i=0;i<EXHAUST_COUNT;i++) exhaustPositions[i*3+1]=-9999;
+  exhaustGeo.attributes.position.needsUpdate=true;
+}
+resetExhaust();
+
+function updateExhaust(dt, thrustLevel) {
+  const nozzleZ = shipParts.flame ? shipParts.flame.position.z : 0.4;
+  for (let i=0;i<EXHAUST_COUNT;i++) {
+    const j=i*3;
+    exhaustLife[i]-=dt;
+    if (exhaustLife[i]<=0) {
+      if (Math.random()>Math.min(1,dt*70*thrustLevel)) continue;
+      const life=THREE.MathUtils.randFloat(0.28,0.72);
+      exhaustLife[i]=exhaustMaxLife[i]=life;
+      exhaustPositions[j]=ship.position.x+THREE.MathUtils.randFloat(-0.11,0.11);
+      exhaustPositions[j+1]=ship.position.y+THREE.MathUtils.randFloat(-0.08,0.08);
+      exhaustPositions[j+2]=ship.position.z+nozzleZ+0.25;
+      exhaustVelocities[i].set(
+        THREE.MathUtils.randFloat(-0.22,0.22), THREE.MathUtils.randFloat(-0.18,0.18),
+        THREE.MathUtils.randFloat(1.8,3.8)*thrustLevel
+      );
+    } else {
+      exhaustPositions[j]+=exhaustVelocities[i].x*dt;
+      exhaustPositions[j+1]+=exhaustVelocities[i].y*dt;
+      exhaustPositions[j+2]+=exhaustVelocities[i].z*dt;
+    }
+    const t=Math.max(0,exhaustLife[i]/exhaustMaxLife[i]);
+    exhaustColors[j]=1;
+    exhaustColors[j+1]=0.22+0.65*t;
+    exhaustColors[j+2]=0.06+0.7*t;
+  }
+  exhaustGeo.attributes.position.needsUpdate=true;
+  exhaustGeo.attributes.color.needsUpdate=true;
+}
+
+function spawnImpact(position, scale=1, color=0xff8a32) {
+  const count=24, positions=new Float32Array(count*3), velocities=[];
+  for (let i=0;i<count;i++) {
+    const dir=new THREE.Vector3(Math.random()*2-1,Math.random()*2-1,Math.random()*2-1).normalize();
+    velocities.push(dir.multiplyScalar(THREE.MathUtils.randFloat(1.8,6)*scale));
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(positions,3));
+  const mat=new THREE.PointsMaterial({ color, size:0.13*scale, transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false });
+  const points=new THREE.Points(geo,mat);
+  points.position.copy(position); points.frustumCulled=false; scene.add(points);
+  impactEffects.push({points,velocities,age:0,life:THREE.MathUtils.randFloat(0.42,0.68)});
+}
+
+function updateImpactEffects(dt) {
+  for (let i=impactEffects.length-1;i>=0;i--) {
+    const fx=impactEffects[i], pos=fx.points.geometry.attributes.position;
+    fx.age+=dt;
+    for (let p=0;p<fx.velocities.length;p++) {
+      pos.setXYZ(p,pos.getX(p)+fx.velocities[p].x*dt,pos.getY(p)+fx.velocities[p].y*dt,pos.getZ(p)+fx.velocities[p].z*dt);
+      fx.velocities[p].multiplyScalar(Math.exp(-2.8*dt));
+    }
+    pos.needsUpdate=true;
+    fx.points.material.opacity=Math.max(0,1-fx.age/fx.life);
+    if (fx.age>=fx.life) {
+      scene.remove(fx.points); fx.points.geometry.dispose(); fx.points.material.dispose(); impactEffects.splice(i,1);
+    }
+  }
+}
 
 // ---------- corredor procedural (nuvem de asteroides) ----------
 function buildBeltSegment(z) {
@@ -720,10 +889,34 @@ function trySpawnObstacles(z, leftEdge, rightEdge) {
 }
 
 function spawnMeteor(x, z) {
-  const mesh = new THREE.Mesh(meteorGeo, meteorMat);
-  mesh.position.set(x, 0, z);
+  const radius = THREE.MathUtils.randFloat(0.42, 0.78);
+  const mesh = new THREE.Mesh(
+    meteorGeoPool[(Math.random()*meteorGeoPool.length)|0],
+    meteorMats[(Math.random()*meteorMats.length)|0]
+  );
+  mesh.scale.set(
+    radius/0.55*THREE.MathUtils.randFloat(0.82,1.18),
+    radius/0.55*THREE.MathUtils.randFloat(0.82,1.18),
+    radius/0.55*THREE.MathUtils.randFloat(0.82,1.18)
+  );
+  mesh.position.set(x, THREE.MathUtils.randFloat(-0.3,0.3), z);
+  mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
   scene.add(mesh);
-  meteors.push({ mesh, extraSpeed: THREE.MathUtils.randFloat(1.4,4), spin: THREE.MathUtils.randFloat(-2.5,2.5) });
+  meteors.push({
+    mesh, radius,
+    velocity: new THREE.Vector3(
+      THREE.MathUtils.randFloat(-0.32,0.32),
+      THREE.MathUtils.randFloat(-0.08,0.08),
+      THREE.MathUtils.randFloat(1.4,4)
+    ),
+    angularVelocity: new THREE.Vector3(
+      THREE.MathUtils.randFloat(-1.8,1.8),
+      THREE.MathUtils.randFloat(-1.8,1.8),
+      THREE.MathUtils.randFloat(-1.8,1.8)
+    )
+  });
 }
 
 function spawnDrone(x, z) {
@@ -733,6 +926,7 @@ function spawnDrone(x, z) {
   sensor.position.set(0, 0.1, -0.4);
   group.add(sensor);
   group.position.set(x, 0, z);
+  group.traverse(obj=>{ if(obj.isMesh){ obj.castShadow=true; obj.receiveShadow=true; } });
   scene.add(group);
   drones.push({ mesh:group, baseX:x, phase:Math.random()*1000, closingSpeed:THREE.MathUtils.randFloat(0.8,1.6), fireCd:THREE.MathUtils.randFloat(900,2200) });
 }
@@ -767,6 +961,8 @@ function clearAllEntities() {
   playerBullets.splice(0).forEach(b => scene.remove(b.mesh));
   droneBullets.splice(0).forEach(b => scene.remove(b.mesh));
   debris.splice(0).forEach(d => scene.remove(d.mesh));
+  impactEffects.splice(0).forEach(fx=>{ scene.remove(fx.points); fx.points.geometry.dispose(); fx.points.material.dispose(); });
+  resetExhaust();
   segments.splice(0).forEach(removeBeltSegment);
 }
 
@@ -778,7 +974,7 @@ for (let i=0;i<20;i++) { buildBeltSegment(nextSegmentZ); nextSegmentZ -= CORRIDO
 // Materiais que só entram em cena via spawn ganham um mesh invisível de aquecimento.
 const warmup = new THREE.Group();
 warmup.visible = false;
-[[meteorGeo, meteorMat], [droneBodyGeo, droneMat], [droneSensorGeo, droneSensorMat],
+[[meteorGeoPool[0], meteorMats[0]], [droneBodyGeo, droneMat], [droneSensorGeo, droneSensorMat],
  [fuelCellGeo, fuelCellMat], [bulletPlayerGeo, bulletPlayerMat], [bulletDroneGeo, bulletDroneMat]]
   .forEach(([geo, mat]) => warmup.add(new THREE.Mesh(geo, mat)));
 scene.add(warmup);
@@ -794,6 +990,8 @@ function flashHit() {
 function damagePlayer() {
   if (invulnerable || state !== 'playing') return;
   lives--;
+  spawnImpact(ship.position,1.35,0xffb45c);
+  cameraShake = Math.max(cameraShake,0.55);
   AudioSys.explosion();
   flashHit();
   updateHUD();
@@ -811,7 +1009,8 @@ function handleCollisions() {
     const b = playerBullets[bi];
     for (let mi=meteors.length-1; mi>=0; mi--) {
       const m = meteors[mi];
-      if (dist2(b.mesh.position, m.mesh.position) < sq(0.25+0.55)) {
+      if (dist2(b.mesh.position, m.mesh.position) < sq(0.25+m.radius)) {
+        spawnImpact(m.mesh.position,m.radius/0.55);
         scene.remove(b.mesh); playerBullets.splice(bi,1);
         scene.remove(m.mesh); meteors.splice(mi,1);
         score += 10; AudioSys.explosion();
@@ -821,6 +1020,7 @@ function handleCollisions() {
     for (let di=drones.length-1; di>=0; di--) {
       const d = drones[di];
       if (dist2(b.mesh.position, d.mesh.position) < sq(0.25+0.5)) {
+        spawnImpact(d.mesh.position,1,0xff496c);
         scene.remove(b.mesh); playerBullets.splice(bi,1);
         scene.remove(d.mesh); drones.splice(di,1);
         score += 25; AudioSys.explosion();
@@ -831,7 +1031,7 @@ function handleCollisions() {
 
   for (let i=meteors.length-1;i>=0;i--) {
     const m = meteors[i];
-    if (dist2(ship.position, m.mesh.position) < sq(shipR+0.55)) {
+    if (dist2(ship.position, m.mesh.position) < sq(shipR+m.radius)) {
       scene.remove(m.mesh); meteors.splice(i,1);
       damagePlayer();
     }
@@ -1052,6 +1252,7 @@ addEventListener('pointerdown', e => {
 const camOffset = new THREE.Vector3(0, 7.5, 9.5);
 const desiredCamPos = new THREE.Vector3();
 const camTarget = new THREE.Vector3();
+let cameraShake = 0;
 
 // ---------- loop principal ----------
 const clock = new THREE.Clock();
@@ -1061,6 +1262,7 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
 
   updateComet(dt); // roda em qualquer estado — o cometa também cruza o céu do menu
+  updateImpactEffects(dt);
 
   if (state !== 'playing') {
     renderer.render(scene, camera);
@@ -1132,6 +1334,8 @@ function animate() {
     const flicker = 0.85 + Math.random()*0.3;
     shipParts.flame.scale.set(flicker, thrustLevel*flicker, flicker); // Y local = comprimento (aponta para trás)
     shipParts.flame.material.opacity = 0.55 + Math.random()*0.3;
+    if (shipParts.flameLight) shipParts.flameLight.intensity=(8+Math.random()*7)*thrustLevel;
+    updateExhaust(dt,thrustLevel);
   }
 
   // destroços dos estágios ejetados: tombam e ficam para trás
@@ -1165,9 +1369,11 @@ function animate() {
 
   for (let i=meteors.length-1;i>=0;i--) {
     const m = meteors[i];
-    m.mesh.position.z += m.extraSpeed*dt;
-    m.mesh.rotation.x += m.spin*dt;
-    m.mesh.rotation.y += m.spin*0.6*dt;
+    // No vácuo a trajetória e o giro permanecem constantes até uma colisão.
+    m.mesh.position.addScaledVector(m.velocity, dt);
+    m.mesh.rotation.x += m.angularVelocity.x*dt;
+    m.mesh.rotation.y += m.angularVelocity.y*dt;
+    m.mesh.rotation.z += m.angularVelocity.z*dt;
     if (m.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(m.mesh); meteors.splice(i,1); }
   }
   for (let i=drones.length-1;i>=0;i--) {
@@ -1207,7 +1413,18 @@ function animate() {
 
   updateHUD();
 
+  // A luz solar acompanha a área jogável para manter sombras precisas perto da nave.
+  sun.position.set(ship.position.x+8,ship.position.y+14,ship.position.z+10);
+  sun.target.position.copy(ship.position);
+  sun.target.updateMatrixWorld();
+
   desiredCamPos.set(ship.position.x*0.6 + camOffset.x, ship.position.y + camOffset.y, ship.position.z + camOffset.z);
+  cameraShake *= Math.exp(-8*dt);
+  if (cameraShake>0.002) {
+    desiredCamPos.x+=THREE.MathUtils.randFloatSpread(cameraShake);
+    desiredCamPos.y+=THREE.MathUtils.randFloatSpread(cameraShake*0.65);
+    desiredCamPos.z+=THREE.MathUtils.randFloatSpread(cameraShake*0.45);
+  }
   camera.position.lerp(desiredCamPos, 1 - Math.exp(-8*dt));
   camTarget.set(ship.position.x, ship.position.y - 1.4, ship.position.z - 6);
   camera.lookAt(camTarget);
