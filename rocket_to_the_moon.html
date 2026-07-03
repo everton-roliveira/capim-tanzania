@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Capim-x — Rocket to the Moon</title>
+<title>Capim-X — Rocket to the Moon</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.70.0/phaser.min.js"></script>
 <style>
   html, body { margin:0; padding:0; background:#000; height:100%; display:flex; align-items:center; justify-content:center; }
@@ -15,7 +15,7 @@
 <script>
 /* =======================================================
    CAPIM-X — ROCKET TO THE MOON
-   Ano 2049. A Capim-x carrega um canhão de mineração
+   Ano 2049. A Capim-X carrega um canhão de mineração
    adaptado — o bastante para abrir caminho pelos meteoros
    e neutralizar drones de defesa deixados por missões
    anteriores. Cada disparo consome energia: atirar também
@@ -265,27 +265,58 @@ class MainScene extends Phaser.Scene {
       {fontFamily:'monospace',fontSize:10,color:'#889'}).setOrigin(0.5,1).setDepth(10);
 
     // ---------- telas de estado ----------
-    const narrativa =
-      'CAPIM-X\n\n'+
-      '2049. A Terra esgotou seu recurso mais precioso.\n'+
-      'A última reserva conhecida está na Lua. Dezenas\n'+
-      'de missões já tentaram chegar — nenhuma voltou.\n'+
-      'Seus destroços viraram parte do cinturão de\n'+
-      'meteoros, ao lado de drones de defesa automatizados\n'+
-      'que ainda atacam qualquer nave que se aproxime.\n\n'+
-      'A Capim-x carrega um canhão de mineração\n'+
-      'adaptado: abre caminho pelos meteoros e neutraliza\n'+
-      'os drones. Não é uma nave de guerra — cada disparo\n'+
-      'consome combustível, o mesmo que decide se você\n'+
-      'chega ou vira mais um destroço.\n\n'+
-      'Sem freio: a nave desliza, a gravidade puxa,\n'+
-      'e a Lua cresce no horizonte.\n\n'+
-      'Desvie. Atire. Abasteça. Chegue.\n\n'+
-      '[1] FÁCIL     [2] MÉDIO     [3] DIFÍCIL';
+    // Menu: crawl estilo Star Wars — cada linha é um texto próprio que sobe
+    // da base encolhendo rumo ao "horizonte" (perspectiva fake via scale)
+    const crawl = [
+      'CAPIM-X',
+      '',
+      'Ano 2049. A Terra esgotou',
+      'seu recurso mais precioso.',
+      'A última reserva conhecida',
+      'está na Lua.',
+      '',
+      'Dezenas de missões já',
+      'tentaram chegar.',
+      'Nenhuma voltou.',
+      '',
+      'Seus destroços viraram',
+      'parte do cinturão de',
+      'meteoros, junto a drones',
+      'de defesa que ainda atacam',
+      'qualquer nave que se',
+      'aproxime.',
+      '',
+      'A Capim-X carrega um',
+      'canhão de mineração',
+      'adaptado: abre caminho',
+      'pelos meteoros e',
+      'neutraliza os drones.',
+      '',
+      'Não é uma nave de guerra.',
+      'Cada disparo consome',
+      'combustível — o mesmo que',
+      'decide se você chega ou',
+      'vira mais um destroço.',
+      '',
+      'Sem freio: a nave desliza,',
+      'a gravidade puxa, e a Lua',
+      'cresce no horizonte.',
+      '',
+      'Desvie. Atire.',
+      'Abasteça. Chegue.'
+    ];
+    this.crawlTexts = crawl.map(line => this.add.text(W/2, H+60, line,
+      {fontFamily:'monospace',fontSize:22,fontStyle:'bold',color:'#ffe81f',align:'center'})
+      .setOrigin(0.5).setDepth(20).setVisible(false));
+    this.crawlSpacing = 40;  // distância virtual entre linhas
+    this.crawlSpan = 560;    // percurso virtual da base até o horizonte
+    this.crawlSpeed = 65;    // px virtuais por segundo
+    this.crawlOffset = this.crawlSpacing*3; // já começa com as primeiras linhas na tela
+    this.updateCrawl(0);
 
-    this.menuText = this.add.text(W/2,H/2,narrativa,
-      {fontFamily:'monospace',fontSize:12,color:'#ffffff',align:'center',lineSpacing:3})
-      .setOrigin(0.5).setDepth(20);
+    this.menuPrompt = this.add.text(W/2, H-44, '[1] FÁCIL   [2] MÉDIO   [3] DIFÍCIL',
+      {fontFamily:'monospace',fontSize:15,color:'#ffffff'})
+      .setOrigin(0.5,1).setDepth(20);
 
     this.gameOverText = this.add.text(W/2,H/2,'', {fontFamily:'monospace',fontSize:16,color:'#ff5555',align:'center',lineSpacing:6})
       .setOrigin(0.5).setDepth(20).setVisible(false);
@@ -303,7 +334,7 @@ class MainScene extends Phaser.Scene {
   createTextures() {
     const g = this.add.graphics();
 
-    // Nave — Capim-x
+    // Nave — Capim-X
     g.clear();
     g.fillStyle(0xffffff,1); g.fillTriangle(16,0, 2,40, 30,40);
     g.fillStyle(0x3399ff,1); g.fillTriangle(16,10, 8,30, 24,30);
@@ -365,6 +396,28 @@ class MainScene extends Phaser.Scene {
   }
 
   // ======================================================
+  // CRAWL DO MENU (estilo Star Wars)
+  // ======================================================
+  updateCrawl(delta) {
+    this.crawlOffset += this.crawlSpeed*delta/1000;
+    const total = (this.crawlTexts.length-1)*this.crawlSpacing + this.crawlSpan;
+    if (this.crawlOffset > total + 120) this.crawlOffset = -H*0.4; // pausa e recomeça
+    const horizon = 70, bottom = H-100;
+    this.crawlTexts.forEach((t,i) => {
+      const d = this.crawlOffset - i*this.crawlSpacing; // quanto a linha já percorreu
+      if (d < 0 || d > this.crawlSpan) { t.setVisible(false); return; }
+      const p = 1 - d/this.crawlSpan;                   // 1 = base, 0 = horizonte
+      const titleMul = (i===0) ? 1.7 : 1;               // título maior, como no filme
+      const fadeIn  = Math.min(d/50, 1);                // surge na base sem cobrir o HUD
+      const fadeOut = p < 0.25 ? p/0.25 : 1;            // some perto do horizonte
+      t.setVisible(true)
+       .setY(horizon + (bottom-horizon)*Math.pow(p,1.8))
+       .setScale((0.28 + 0.92*p)*titleMul)
+       .setAlpha(Math.min(fadeIn, fadeOut));
+    });
+  }
+
+  // ======================================================
   // CONTROLE DE ESTADO
   // ======================================================
   startGame(diffKey) {
@@ -384,7 +437,8 @@ class MainScene extends Phaser.Scene {
      this.playerBulletsGroup,this.droneBulletsGroup].forEach(gr=>gr.clear(true,true));
 
     this.player.setPosition(W/2,600).setAlpha(1).setVisible(true).clearTint();
-    this.menuText.setVisible(false);
+    this.crawlTexts.forEach(t=>t.setVisible(false));
+    this.menuPrompt.setVisible(false);
     this.gameOverText.setVisible(false);
     this.winText.setVisible(false);
     this.moonSprite.setVisible(false).setScale(1).setPosition(W/2,60);
@@ -517,6 +571,7 @@ class MainScene extends Phaser.Scene {
       else if (Phaser.Input.Keyboard.JustDown(this.cursors.space)) this.startGame('medio');
       this.starsFar.tilePositionY -= 10*delta/1000;
       this.starsNear.tilePositionY -= 20*delta/1000;
+      if (this.state==='menu') this.updateCrawl(delta);
       return;
     }
 
