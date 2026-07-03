@@ -44,8 +44,9 @@ const CH = {
 };
 
 const AudioSys = {
-  ctx:null, master:null, musicGain:null, sfxGain:null,
+  ctx:null, master:null, musicGain:null, sfxGain:null, introGain:null,
   timer:null, track:null, step:0, nextTime:0, muted:false,
+  introTimer:null, introPlayed:false,
 
   init() {
     if (this.ctx) return;
@@ -54,6 +55,7 @@ const AudioSys = {
     this.master    = this.ctx.createGain(); this.master.gain.value    = 0.5;  this.master.connect(this.ctx.destination);
     this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = 0.35; this.musicGain.connect(this.master);
     this.sfxGain   = this.ctx.createGain(); this.sfxGain.gain.value   = 0.55; this.sfxGain.connect(this.master);
+    this.introGain = this.ctx.createGain(); this.introGain.gain.value = 1.0;  this.introGain.connect(this.musicGain);
   },
 
   mtof(m) { return 440 * Math.pow(2, (m-69)/12); },
@@ -114,6 +116,28 @@ const AudioSys = {
     }
   },
 
+  // tema de abertura: toca uma vez e desce pro loop ambiente de menu
+  playIntro() {
+    if (!this.ctx) return;
+    this.stopMusic();
+    this.introGain.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.introGain.gain.setValueAtTime(1.0, this.ctx.currentTime);
+    const t = this.ctx.currentTime + 0.15;
+    const dest = this.introGain;
+    // drone grave sustentado sob tudo
+    this.blip(t, this.mtof(33), 8.4, 'sine',     dest, 0.18);   // A1
+    this.blip(t, this.mtof(45), 8.4, 'triangle', dest, 0.09);   // A2
+    // pads: progressão Am - F - G - Am
+    const pad = (off, chord, dur) => chord.forEach(m => this.blip(t+off, this.mtof(m), dur, 'sine', dest, 0.055));
+    pad(0.0, CH.Am, 2.4); pad(2.4, CH.F, 2.4); pad(4.8, CH.G, 1.6); pad(6.4, CH.Am, 2.0);
+    // melodia principal (quente, memorável)
+    const mel = [[0.0,64,0.8],[0.8,69,0.8],[1.6,72,1.2],[2.8,71,0.6],
+                 [3.4,69,1.4],[4.8,67,0.8],[5.6,64,0.8],[6.4,69,1.9]];
+    mel.forEach(([off,m,dur]) => this.blip(t+off, this.mtof(m), dur, 'triangle', dest, 0.20));
+    // ao terminar a abertura, entra o loop ambiente de menu
+    this.introTimer = setTimeout(() => this.startTrack(this.menuTrack), 8600);
+  },
+
   startTrack(track) {
     if (!this.ctx) return;
     this.stopMusic();
@@ -129,7 +153,15 @@ const AudioSys = {
     }
     this.timer = setTimeout(() => this._schedule(), 40);
   },
-  stopMusic() { if (this.timer) { clearTimeout(this.timer); this.timer = null; } this.track = null; },
+  stopMusic() {
+    if (this.timer)      { clearTimeout(this.timer); this.timer = null; }
+    if (this.introTimer) { clearTimeout(this.introTimer); this.introTimer = null; }
+    if (this.introGain && this.ctx) {  // corta notas do intro já agendadas
+      this.introGain.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.introGain.gain.setValueAtTime(0, this.ctx.currentTime);
+    }
+    this.track = null;
+  },
 
   toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.5; },
 
@@ -196,7 +228,10 @@ class MainScene extends Phaser.Scene {
     const armAudio = () => {
       AudioSys.init();
       if (AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
-      if (this.state === 'menu' && !AudioSys.track) AudioSys.startTrack(AudioSys.menuTrack);
+      if (this.state === 'menu' && !AudioSys.introPlayed && !AudioSys.track) {
+        AudioSys.introPlayed = true;
+        AudioSys.playIntro();
+      }
     };
     this.input.keyboard.on('keydown', armAudio);
     this.input.on('pointerdown', armAudio);
