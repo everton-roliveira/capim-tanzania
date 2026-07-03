@@ -1294,6 +1294,7 @@ function startGame(diffKey) {
   ship.rotation.set(0,0,0);   // zera pose (evita herdar a vertical de um pouso anterior)
   ship.visible = true;
   moon.visible = false; moon.scale.set(1,1,1); moon.rotation.set(0,0,0);
+  removeFlag();
 
   introOverlay.style.display = 'none';
   titleOverlay.style.display = 'none';
@@ -1678,6 +1679,64 @@ const camEndV        = new THREE.Vector3();
 const dustGeo = new THREE.SphereGeometry(0.12, 6, 6);
 const dustParts = [];
 
+// ---------- bandeira Capim (plantada no pouso) ----------
+// Haste horizontal no topo (como a bandeira real da Apollo): na Lua não
+// tem atmosfera pra "tremular" a bandeira, então ela fica esticada por
+// uma armação rígida em vez de balançar ao vento.
+const FLAG_POLE_HEIGHT = 2.8;
+const flagPoleMat = new THREE.MeshStandardMaterial({ color:0xcccccc, roughness:0.4, metalness:0.6 });
+const flagPoleGeo = new THREE.CylinderGeometry(0.03, 0.03, FLAG_POLE_HEIGHT, 6);
+const flagRodGeo = new THREE.CylinderGeometry(0.017, 0.017, 1.05, 6);
+// fina borda roxa + pano bem verde: as cores da própria Capim-X (hullMat/accentMat)
+const flagBorderMat = new THREE.MeshStandardMaterial({ color:0x59399e, roughness:0.6, side:THREE.DoubleSide });
+const flagBorderGeo = new THREE.PlaneGeometry(1.10, 0.68);
+const flagClothMat = new THREE.MeshStandardMaterial({ color:0xa6cd15, roughness:0.6, side:THREE.DoubleSide });
+const flagClothGeo = new THREE.PlaneGeometry(1.04, 0.64);
+const flagLogoTex = new THREE.TextureLoader().load('capim-logo.png');
+const flagLogoMat = new THREE.MeshBasicMaterial({ map:flagLogoTex, transparent:true, side:THREE.DoubleSide });
+const flagLogoGeo = new THREE.PlaneGeometry(1.0, 0.5);
+
+let flag = null;
+function plantFlag() {
+  if (flag) return;
+  const group = new THREE.Group();
+
+  const pole = new THREE.Mesh(flagPoleGeo, flagPoleMat);
+  pole.position.y = FLAG_POLE_HEIGHT/2;
+  group.add(pole);
+
+  const rod = new THREE.Mesh(flagRodGeo, flagPoleMat);
+  rod.rotation.z = Math.PI/2;
+  rod.position.set(0.53, FLAG_POLE_HEIGHT - 0.34, 0);
+  group.add(rod);
+
+  const border = new THREE.Mesh(flagBorderGeo, flagBorderMat);
+  border.position.set(0.53, FLAG_POLE_HEIGHT - 0.34, -0.003);
+  group.add(border);
+
+  const cloth = new THREE.Mesh(flagClothGeo, flagClothMat);
+  cloth.position.set(0.53, FLAG_POLE_HEIGHT - 0.34, 0);
+  group.add(cloth);
+
+  const logo = new THREE.Mesh(flagLogoGeo, flagLogoMat);
+  logo.position.set(0.53, FLAG_POLE_HEIGHT - 0.34, 0.006);
+  group.add(logo);
+  const logoBack = new THREE.Mesh(flagLogoGeo, flagLogoMat);
+  logoBack.position.set(0.53, FLAG_POLE_HEIGHT - 0.34, -0.006);
+  logoBack.rotation.y = Math.PI;
+  group.add(logoBack);
+
+  // afastada mais pro lado pra não ficar atrás do painel central de vitória
+  group.position.set(touchdown.x + 2.8, touchdown.y, touchdown.z + 0.3);
+  scene.add(group);
+  flag = group;
+}
+function removeFlag() {
+  if (!flag) return;
+  scene.remove(flag);
+  flag = null;
+}
+
 function startLanding() {
   state = 'landing';
   landingT = 0;
@@ -1737,6 +1796,7 @@ function spawnDust() {
 
 function finishLanding() {
   spawnDust();
+  plantFlag();
   RadioChatter.stop();   // silencia o chatter antes do tema de conquista
   AudioSys.win();
   state = 'win';
