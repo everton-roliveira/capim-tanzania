@@ -342,14 +342,50 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.1);
 sun.position.set(6, 12, 8);
 scene.add(sun);
 
-// ---------- lua distante (narrativa) ----------
+// ---------- lua (textura procedural: crateras + mares) ----------
+// Gera a superfície num canvas e usa como cor E relevo (bumpMap). Sem assets
+// externos — coerente com o resto do jogo, que sintetiza tudo em runtime.
+function makeMoonTexture() {
+  const size = 1024;
+  const cv = document.createElement('canvas'); cv.width = cv.height = size;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#8f8f97'; g.fillRect(0, 0, size, size);
+  // mares (regiões escuras grandes e suaves)
+  for (let i = 0; i < 9; i++) {
+    const x = Math.random()*size, y = Math.random()*size, r = 90 + Math.random()*160;
+    const grd = g.createRadialGradient(x, y, 0, x, y, r);
+    grd.addColorStop(0, 'rgba(64,64,74,0.55)'); grd.addColorStop(1, 'rgba(64,64,74,0)');
+    g.fillStyle = grd; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  // crateras: interior escuro + borda clara (dá o relevo no bumpMap)
+  for (let i = 0; i < 260; i++) {
+    const x = Math.random()*size, y = Math.random()*size, r = 4 + Math.random()*38;
+    const gin = g.createRadialGradient(x, y, 0, x, y, r);
+    gin.addColorStop(0, 'rgba(55,55,63,0.6)');
+    gin.addColorStop(0.7, 'rgba(120,120,128,0.12)');
+    gin.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gin; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(215,215,225,0.35)'; g.lineWidth = Math.max(1, r*0.12);
+    g.beginPath(); g.arc(x, y, r*0.92, 0, 7); g.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  return tex;
+}
+
+const moonTex = makeMoonTexture();
 const moon = new THREE.Mesh(
-  new THREE.SphereGeometry(40, 24, 24),
-  new THREE.MeshStandardMaterial({ color:0xdddddd, roughness:1 })
+  new THREE.SphereGeometry(40, 64, 64),
+  new THREE.MeshStandardMaterial({ map:moonTex, bumpMap:moonTex, bumpScale:1.4, roughness:1, metalness:0 })
 );
 moon.position.set(20, 30, -1800);
 moon.visible = false;
 scene.add(moon);
+// halo sutil (filho: acompanha posição/escala da Lua)
+const moonGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(43, 32, 32),
+  new THREE.MeshBasicMaterial({ color:0x99aaff, transparent:true, opacity:0.12, side:THREE.BackSide, blending:THREE.AdditiveBlending, depthWrite:false })
+);
+moon.add(moonGlow);
 
 // ---------- estrelas ----------
 (function makeStarfield() {
@@ -676,6 +712,7 @@ function clearAllEntities() {
   playerBullets.splice(0).forEach(b => scene.remove(b.mesh));
   droneBullets.splice(0).forEach(b => scene.remove(b.mesh));
   debris.splice(0).forEach(d => scene.remove(d.mesh));
+  dustParts.splice(0).forEach(d => scene.remove(d.mesh));
   segments.splice(0).forEach(removeBeltSegment);
 }
 
@@ -690,7 +727,7 @@ function flashHit() {
 }
 
 function damagePlayer() {
-  if (invulnerable || state !== 'playing') return;
+  if (invulnerable || state !== 'playing' || debugGod) return;
   lives--;
   AudioSys.explosion();
   flashHit();
@@ -857,8 +894,9 @@ function startGame(diffKey) {
   massMul = 1;
   nextSeparation = 0;
   ship.position.set(0,0,0);
+  ship.rotation.set(0,0,0);   // zera pose (evita herdar a vertical de um pouso anterior)
   ship.visible = true;
-  moon.visible = false; moon.scale.set(1,1,1);
+  moon.visible = false; moon.scale.set(1,1,1); moon.rotation.set(0,0,0);
 
   introOverlay.style.display = 'none';
   titleOverlay.style.display = 'none';
@@ -893,19 +931,28 @@ function triggerGameOver(reason) {
   gameOverOverlay.style.display = 'flex';
 }
 
-function winGame() {
-  state = 'win';
-  ship.visible = false;
-  AudioSys.win();
-  moon.visible = true;
-  winPanel.textContent =
-    `A CAPIM-X CHEGOU NA LUA\n\nDificuldade: ${diff.label}\nScore: ${Math.floor(score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`;
-  winOverlay.style.display = 'flex';
-}
+// vitória: agora passa pela cutscene de pouso — ver bloco
+// "cutscene de pouso na Lua" (startLanding -> finishLanding) mais abaixo.
 
 // ---------- input ----------
 const keys = {};
 const CAPTURED_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'];
+
+// ---------- modo debug (ative com ?debug na URL) ----------
+const DEBUG = location.search.includes('debug');
+let debugGod = false;
+if (DEBUG) {
+  const dh = document.createElement('div');
+  dh.textContent = 'DEBUG   [L] pular p/ pouso   [G] god mode';
+  dh.style.cssText = 'position:fixed;right:14px;bottom:26px;font:11px monospace;color:#ff77cc;letter-spacing:1px;z-index:6;pointer-events:none;text-shadow:0 0 6px rgba(255,0,120,0.5)';
+  document.body.appendChild(dh);
+}
+
+// pula direto para a cutscene de pouso (inicia um jogo se necessário)
+function debugToEnding() {
+  if (state !== 'playing' && state !== 'landing' && state !== 'win') startGame('medio');
+  if (state === 'playing') startLanding();
+}
 
 function armAudio() {
   AudioSys.init();
@@ -925,6 +972,11 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   armAudio();
   if (e.code === 'KeyM') AudioSys.toggleMute();
+
+  if (DEBUG) {
+    if (e.code === 'KeyL') { debugToEnding(); return; }
+    if (e.code === 'KeyG') { debugGod = !debugGod; if (state === 'playing') showStageMsg('GOD MODE ' + (debugGod ? 'ON' : 'OFF')); }
+  }
 
   if (state === 'intro') { goToTitle(); return; }
   if (state === 'title') { if (e.code==='Enter' || e.code==='Space') goToSelect(); return; }
@@ -947,6 +999,103 @@ const camOffset = new THREE.Vector3(0, 7.5, 9.5);
 const desiredCamPos = new THREE.Vector3();
 const camTarget = new THREE.Vector3();
 
+// ---------- cutscene de pouso na Lua (não-interativa) ----------
+function smoothstep(t) { t = THREE.MathUtils.clamp(t, 0, 1); return t*t*(3 - 2*t); }
+
+const LANDING_DURATION = 5.5;             // segundos da descida
+let landingT = 0, landStartRotX = 0, landStartRotZ = 0;
+const landStartPos   = new THREE.Vector3();
+const touchdown      = new THREE.Vector3();
+const camStart       = new THREE.Vector3();
+const camTargetStart = new THREE.Vector3();
+const camLookTarget  = new THREE.Vector3();
+const camEndV        = new THREE.Vector3();
+
+const dustGeo = new THREE.SphereGeometry(0.12, 6, 6);
+const dustParts = [];
+
+function startLanding() {
+  state = 'landing';
+  landingT = 0;
+  landStartPos.copy(ship.position);
+  landStartRotX = ship.rotation.x;
+  landStartRotZ = ship.rotation.z;
+  ship.visible = true;
+
+  // posiciona a Lua grande, logo abaixo e um pouco à frente da nave
+  const S = 1.6; moon.scale.setScalar(S); moon.visible = true;
+  const effR = 40*S, descent = 42, forward = 26;
+  moon.position.set(ship.position.x, ship.position.y - descent - effR, ship.position.z - forward);
+  touchdown.set(moon.position.x, moon.position.y + effR + 0.6, moon.position.z); // topo da Lua
+
+  camStart.copy(camera.position);
+  camTargetStart.copy(ship.position);
+}
+
+function updateLanding(dt) {
+  landingT = Math.min(1, landingT + dt/LANDING_DURATION);
+  const e = smoothstep(landingT);
+
+  // desce do ponto inicial até o topo da Lua
+  ship.position.lerpVectors(landStartPos, touchdown, e);
+  // gira para a vertical: nariz para cima, motor/retrofoguete para baixo
+  ship.rotation.x = landStartRotX + (Math.PI/2 - landStartRotX)*e;
+  ship.rotation.z = landStartRotZ*(1 - e);
+
+  // retrofoguete de frenagem: chama cresce na aproximação final
+  if (shipParts.flame) {
+    const retro = 0.8 + e*1.8 + Math.random()*0.3;
+    shipParts.flame.scale.set(1.1, retro, 1.1);
+    shipParts.flame.material.opacity = 0.6 + Math.random()*0.3;
+  }
+
+  moon.rotation.y += dt*0.05;
+
+  // câmera acompanha a descida e fecha num enquadramento da superfície
+  camEndV.set(touchdown.x + 7, touchdown.y + 5, touchdown.z + 11);
+  camera.position.lerpVectors(camStart, camEndV, smoothstep(Math.min(1, landingT*1.15)));
+  camLookTarget.lerpVectors(camTargetStart, touchdown, e);
+  camLookTarget.y += 2.5*e;   // sobe a mira no fim -> nave no terço inferior (fora do painel)
+  camera.lookAt(camLookTarget);
+
+  if (landingT >= 1) finishLanding();
+}
+
+function spawnDust() {
+  for (let i = 0; i < 18; i++) {
+    const m = new THREE.Mesh(dustGeo, new THREE.MeshBasicMaterial({ color:0xc4c4d0, transparent:true, opacity:0.85 }));
+    m.position.copy(touchdown);
+    scene.add(m);
+    const ang = Math.random()*Math.PI*2, sp = THREE.MathUtils.randFloat(2, 5);
+    dustParts.push({ mesh:m, vel:new THREE.Vector3(Math.cos(ang)*sp, THREE.MathUtils.randFloat(1.5, 3.5), Math.sin(ang)*sp), life:1 });
+  }
+}
+
+function finishLanding() {
+  spawnDust();
+  AudioSys.win();
+  state = 'win';
+  ship.visible = true;   // fica pousada e visível
+  winPanel.textContent =
+    `A CAPIM-X POUSOU NA LUA\n\nDificuldade: ${diff.label}\nScore: ${Math.floor(score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`;
+  winOverlay.style.display = 'flex';
+}
+
+function updateWinIdle(dt) {
+  moon.rotation.y += dt*0.04;
+  if (shipParts.flame) shipParts.flame.material.opacity = 0; // motor desligado após pousar
+  for (let i = dustParts.length-1; i >= 0; i--) {
+    const d = dustParts[i];
+    d.mesh.position.addScaledVector(d.vel, dt);
+    d.vel.y -= 5*dt;                 // "gravidade" puxa a poeira de volta
+    d.vel.multiplyScalar(0.96);
+    d.life -= dt*0.7;
+    d.mesh.material.opacity = Math.max(0, d.life)*0.85;
+    d.mesh.scale.setScalar(1 + (1 - d.life)*1.6);
+    if (d.life <= 0) { scene.remove(d.mesh); dustParts.splice(i, 1); }
+  }
+}
+
 // ---------- loop principal ----------
 const clock = new THREE.Clock();
 
@@ -954,6 +1103,8 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
 
+  if (state === 'landing') { updateLanding(dt); renderer.render(scene, camera); return; }
+  if (state === 'win')     { updateWinIdle(dt); renderer.render(scene, camera); return; }
   if (state !== 'playing') {
     renderer.render(scene, camera);
     return;
@@ -980,6 +1131,7 @@ function animate() {
   let drain = (4 + (boosting?3:0) - (braking?2:0)) * diff.fuelDrainMul;
   drain = Math.max(drain, 1) * (0.55 + 0.45*massMul);  // mais leve = menos consumo
   fuel -= drain*dt;
+  if (debugGod) fuel = 100;   // debug: combustível infinito
 
   const effMaxSpeed = diff.maxSpeed * (1 + (1-massMul)*0.5);
   if (keys['ArrowLeft'])  vx -= (diff.thrust/massMul)*dt;
@@ -1071,14 +1223,8 @@ function animate() {
 
   handleCollisions();
 
-  if (difficultyT > 0.75) {
-    const p = THREE.MathUtils.clamp((difficultyT-0.75)/0.25, 0, 1);
-    moon.visible = true;
-    moon.scale.setScalar(1 + p*3);
-    moon.position.set(20, 30, ship.position.z - 300 + p*250);
-  }
-
-  if (distanceTravelled >= moonDistance) { winGame(); return; }
+  // (a Lua aparece apenas na cutscene de pouso — ver startLanding)
+  if (distanceTravelled >= moonDistance) { startLanding(); return; }
 
   updateHUD();
 
