@@ -62,22 +62,23 @@ Não precisa instalar nada — é um único arquivo HTML que carrega o Phaser vi
 
 ## Áudio
 
-Trilha sonora e efeitos sonoros 100% gerados via Web Audio API — sem nenhum arquivo de áudio externo. Inclui música de menu e de jogo em loop, além de SFX de disparo, explosão, pickup, game over e vitória. Pode ser mutado a qualquer momento com `M`.
+Trilha sonora e efeitos sonoros gerados via Web Audio API — música de menu e de jogo em loop, além de SFX de disparo, explosão, pickup, game over e vitória. No 3D, essa base procedural é combinada com trechos reais sobrepostos durante a partida: o chatter de rádio da Apollo 11 e uma contagem regressiva de lançamento real (Space Shuttle Launch Countdown). Tudo pode ser mutado a qualquer momento com `M`.
 
 ## Stack
 
-- **Engine**: [Phaser 3](https://phaser.io/) (v3.70.0, via CDN) — física arcade, colisões, grupos e câmera.
-- **Frontend**: HTML/CSS/JS puro, sem framework e sem build step — arquivo único.
-- **Sprites**: gerados via Graphics API do próprio Phaser, sem nenhum asset de imagem externo.
-- **Áudio**: Web Audio API, com música e efeitos sonoros sintetizados proceduralmente.
-- **Versionamento**: Git/GitHub.
-- **Deploy**: nenhum — é um HTML estático, roda direto no navegador.
+- **Engines**: [Phaser 3](https://phaser.io/) (v3.70.0, via CDN) no jogo 2D original (`rocket_to_the_moon.html`); [Three.js](https://threejs.org/) (r128, via CDN) no protótipo 3D (`capim_x_3d_prototype.html`) — cena, câmera, física simplificada, luzes e geometria proceduralizadas em ambos os motores.
+- **Frontend**: HTML/CSS/JS puro, sem framework e sem build step — cada jogo é um arquivo único.
+- **Sprites/Modelos**: gerados via código (Graphics API do Phaser no 2D; primitivas e materiais do Three.js no 3D) — sem assets de imagem externos, com exceção do logo da Capim (`capim-logo.png`) usado na bandeira plantada na Lua.
+- **Áudio**: síntese via Web Audio API, combinada com dois clipes de áudio real (Apollo 11 e Space Shuttle Launch Countdown) sobrepostos durante o jogo 3D.
+- **Versionamento**: Git/GitHub, com o time trabalhando em paralelo por branches e pull requests.
+- **Deploy**: nenhum — são HTMLs estáticos, rodam direto no navegador.
 
 ## Como utilizamos a IA
 
-O projeto foi "vibe-coded" do início ao fim com a Claude (Opus 4.8, 1M de contexto), da primeira versão jogável até a trilha sonora e os efeitos sonoros procedurais.
+O projeto inteiro foi "vibe-coded" por um time trabalhando em paralelo, cada um na sua branch, com modelos da Claude como par de programação do início ao fim — da primeira versão jogável em 2D até os recursos mais recentes do protótipo 3D:
 
-- A IA implementou a lógica do jogo (física de movimento, colisões, curva de dificuldade progressiva por distância) a partir de descrições do conceito e ajustes de gameplay.
-- Os sprites e o áudio foram gerados por código (Graphics API e Web Audio API), sem nenhum asset externo, com a IA escrevendo as texturas e os sintetizadores de som.
-- Decisões de design (ex.: balanceamento de thrust/drag, dificuldades, narrativa) foram guiadas em conversa, com a IA propondo e iterando a implementação.
-- A co-autoria da IA é registrada diretamente nos commits (`Co-Authored-By: Claude Opus 4.8`).
+- **Claude Opus 4.8 (1M de contexto)** — trilha sonora e efeitos procedurais, tema de abertura e de vitória, terreno 3D da Lua (crateras, mares, ejecta) com cutscene de pouso e modo debug, overlay de áudio real da Apollo 11, cutscene cinematográfica de lançamento e o redesenho da intro/menu do 3D.
+- **Claude Fable 5** — renomeação da nave para Capim-X com o crawl estilo Star Wars no menu, e a nave multi-estágio com separação de componentes (boosters, 1º e 2º estágios), incluindo otimizações de performance.
+- **Claude Sonnet 5** — expansão do README e da documentação do processo, o redesenho iterativo do pickup de combustível (do cilindro neon ao tanque pressurizado) e a bandeira com o logo da Capim plantada na Lua.
+
+Em todos os casos, a IA implementou a lógica de jogo, gerou geometrias/texturas por código e escreveu os sintetizadores de áudio a partir de descrições do conceito — com decisões de design (balanceamento, cores de marca, narrativa) guiadas em conversa. A co-autoria fica registrada diretamente nos commits (`Co-Authored-By`).
