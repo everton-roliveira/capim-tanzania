@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Capininha-1 — Rocket to the Moon</title>
+<title>Capim-x — Rocket to the Moon</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.70.0/phaser.min.js"></script>
 <style>
   html, body { margin:0; padding:0; background:#000; height:100%; display:flex; align-items:center; justify-content:center; }
@@ -14,8 +14,8 @@
 <div id="game"></div>
 <script>
 /* =======================================================
-   CAPININHA-1 — ROCKET TO THE MOON
-   Ano 2049. A Capininha-1 carrega um canhão de mineração
+   CAPIM-X — ROCKET TO THE MOON
+   Ano 2049. A Capim-x carrega um canhão de mineração
    adaptado — o bastante para abrir caminho pelos meteoros
    e neutralizar drones de defesa deixados por missões
    anteriores. Cada disparo consome energia: atirar também
@@ -239,7 +239,7 @@ class MainScene extends Phaser.Scene {
 
     // ---------- HUD ----------
     this.hudGfx = this.add.graphics().setDepth(10);
-    this.shipLabel = this.add.text(14,700,'CAPININHA-1', {fontFamily:'monospace',fontSize:11,color:'#5577aa'}).setOrigin(0,1).setDepth(10);
+    this.shipLabel = this.add.text(14,700,'CAPIM-X', {fontFamily:'monospace',fontSize:11,color:'#5577aa'}).setOrigin(0,1).setDepth(10);
     this.scoreText = this.add.text(W-14,14,'',{fontFamily:'monospace',fontSize:16,color:'#ffffff'}).setOrigin(1,0).setDepth(10);
     this.livesText = this.add.text(14,40,'',{fontFamily:'monospace',fontSize:16,color:'#ffffff'}).setDepth(10);
     this.controlsText = this.add.text(W/2,H-14,'← → desliza   ↑ acelera   ↓ reduz empuxo   SPACE atira   M muta',
@@ -247,14 +247,14 @@ class MainScene extends Phaser.Scene {
 
     // ---------- telas de estado ----------
     const narrativa =
-      'CAPININHA-1\n\n'+
+      'CAPIM-X\n\n'+
       '2049. A Terra esgotou seu recurso mais precioso.\n'+
       'A última reserva conhecida está na Lua. Dezenas\n'+
       'de missões já tentaram chegar — nenhuma voltou.\n'+
       'Seus destroços viraram parte do cinturão de\n'+
       'meteoros, ao lado de drones de defesa automatizados\n'+
       'que ainda atacam qualquer nave que se aproxime.\n\n'+
-      'A Capininha-1 carrega um canhão de mineração\n'+
+      'A Capim-x carrega um canhão de mineração\n'+
       'adaptado: abre caminho pelos meteoros e neutraliza\n'+
       'os drones. Não é uma nave de guerra — cada disparo\n'+
       'consome combustível, o mesmo que decide se você\n'+
@@ -284,7 +284,7 @@ class MainScene extends Phaser.Scene {
   createTextures() {
     const g = this.add.graphics();
 
-    // Nave — Capininha-1
+    // Nave — Capim-x
     g.clear();
     g.fillStyle(0xffffff,1); g.fillTriangle(16,0, 2,40, 30,40);
     g.fillStyle(0x3399ff,1); g.fillTriangle(16,10, 8,30, 24,30);
@@ -385,7 +385,7 @@ class MainScene extends Phaser.Scene {
     this.player.setVisible(false);
     AudioSys.win();
     this.moonSprite.setVisible(true).setScale(2).setPosition(W/2,H/2-80);
-    this.winText.setText(`A CAPININHA-1 CHEGOU NA LUA\n\nDificuldade: ${this.diff.label}\nScore: ${Math.floor(this.score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`).setVisible(true);
+    this.winText.setText(`A CAPIM-X CHEGOU NA LUA\n\nDificuldade: ${this.diff.label}\nScore: ${Math.floor(this.score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`).setVisible(true);
   }
 
   // ======================================================
