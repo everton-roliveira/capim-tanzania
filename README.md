@@ -24,6 +24,10 @@ O espaço não perdoa: a gravidade puxa e o foguete desliza, mas o comando de fr
 
 A missão é simples de explicar e difícil de cumprir: **atire, desvie, abasteça, chegue.**
 
+## Evolução para 3D
+
+O jogo nasceu em 2D (`rocket_to_the_moon.html`). Já tínhamos feito os efeitos sonoros quando surgiu o primeiro evento aleatório do jogo — e a partir dele decidimos transformar o jogo em 3D, dando origem ao protótipo `capim_x_3d_prototype.html`.
+
 ## Como rodar
 
 Não precisa instalar nada — é um único arquivo HTML que carrega o Phaser via CDN.
