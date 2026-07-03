@@ -1017,6 +1017,9 @@ const exhaustColors = new Float32Array(EXHAUST_COUNT*3);
 const exhaustVelocities = Array.from({length:EXHAUST_COUNT},()=>new THREE.Vector3());
 const exhaustLife = new Float32Array(EXHAUST_COUNT);
 const exhaustMaxLife = new Float32Array(EXHAUST_COUNT);
+const exhaustOrigin = new THREE.Vector3();
+const exhaustDirection = new THREE.Vector3();
+const exhaustJitter = new THREE.Vector3();
 const exhaustGeo = new THREE.BufferGeometry();
 exhaustGeo.setAttribute('position',new THREE.BufferAttribute(exhaustPositions,3));
 exhaustGeo.setAttribute('color',new THREE.BufferAttribute(exhaustColors,3));
@@ -1060,6 +1063,8 @@ resetExhaust();
 
 function updateExhaust(dt, thrustLevel) {
   const nozzleZ = shipParts.flame ? shipParts.flame.position.z : 0.4;
+  exhaustOrigin.set(0,0,nozzleZ+0.25).applyQuaternion(ship.quaternion).add(ship.position);
+  exhaustDirection.set(0,0,1).applyQuaternion(ship.quaternion).normalize();
   // A pluma permanece visível no cruzeiro e ganha volume sob maior empuxo.
   exhaustMat.size=0.15+Math.min(thrustLevel,2.8)*0.025;
   smokeMat.size=0.42+Math.min(thrustLevel,2.8)*0.09;
@@ -1074,13 +1079,14 @@ function updateExhaust(dt, thrustLevel) {
       }
       const life=THREE.MathUtils.randFloat(0.38,0.92);
       exhaustLife[i]=exhaustMaxLife[i]=life;
-      exhaustPositions[j]=ship.position.x+THREE.MathUtils.randFloat(-0.11,0.11);
-      exhaustPositions[j+1]=ship.position.y+THREE.MathUtils.randFloat(-0.08,0.08);
-      exhaustPositions[j+2]=ship.position.z+nozzleZ+0.25;
-      exhaustVelocities[i].set(
-        THREE.MathUtils.randFloat(-0.34,0.34), THREE.MathUtils.randFloat(-0.28,0.28),
-        THREE.MathUtils.randFloat(1.8,3.8)*thrustLevel
-      );
+      exhaustJitter.set(THREE.MathUtils.randFloat(-0.11,0.11),THREE.MathUtils.randFloat(-0.08,0.08),0).applyQuaternion(ship.quaternion);
+      exhaustPositions[j]=exhaustOrigin.x+exhaustJitter.x;
+      exhaustPositions[j+1]=exhaustOrigin.y+exhaustJitter.y;
+      exhaustPositions[j+2]=exhaustOrigin.z+exhaustJitter.z;
+      exhaustJitter.set(THREE.MathUtils.randFloat(-0.34,0.34),THREE.MathUtils.randFloat(-0.28,0.28),0).applyQuaternion(ship.quaternion);
+      exhaustVelocities[i].copy(exhaustDirection)
+        .multiplyScalar(THREE.MathUtils.randFloat(1.8,3.8)*thrustLevel)
+        .add(exhaustJitter);
     } else {
       exhaustPositions[j]+=exhaustVelocities[i].x*dt;
       exhaustPositions[j+1]+=exhaustVelocities[i].y*dt;
@@ -1674,7 +1680,7 @@ let cameraShake = 0;
    então aqui só atualizamos nave/Terra/câmera a cada frame.
    ======================================================= */
 const LaunchSequence = {
-  earth: null, pad: null, countdownEl: null, active: false, startMs: 0, diffKey: 'medio', timers: [],
+  earth: null, pad: null, countdownEl: null, active: false, startMs: 0, lastMs: 0, diffKey: 'medio', timers: [],
   DURATION: 9500,                       // ≤10s: contagem + decolagem + atmosfera→espaço + inclinação
   COUNT: 0.315,                         // fração até o liftoff (~3s, alinhado ao "liftoff" do áudio)
   PITCH: 0.76,                          // fração onde começa a inclinar p/ horizontal
@@ -1783,6 +1789,7 @@ const LaunchSequence = {
     this.pad.visible = true;
 
     buildShip();                          // mesma nave do jogo
+    resetExhaust();
     massMul = 1;
     ship.position.set(0, this.SHIP_PAD_Y, 0);
     ship.rotation.set(Math.PI/2, 0, 0);   // VERTICAL na base (nariz para cima, +Y)
@@ -1807,7 +1814,7 @@ const LaunchSequence = {
     T(5200, () => showStageMsg('ESTRATOSFERA'));
     T(7000, () => showStageMsg('ESPAÇO'));
 
-    this.startMs = performance.now();
+    this.startMs = this.lastMs = performance.now();
     this.active = true;
     this.tick();   // roda o 1º frame já (câmera + nave no lançamento) — sem esperar o próximo rAF,
                    // assim nenhum frame é renderizado com a câmera do menu
@@ -1815,7 +1822,10 @@ const LaunchSequence = {
 
   tick() {
     if (!this.active) return;
-    const t = THREE.MathUtils.clamp((performance.now() - this.startMs)/this.DURATION, 0, 1);
+    const now = performance.now();
+    const dt = Math.min((now-this.lastMs)/1000,0.05);
+    this.lastMs = now;
+    const t = THREE.MathUtils.clamp((now - this.startMs)/this.DURATION, 0, 1);
     const smoother = x => x*x*x*(x*(x*6-15)+10);
 
     // --- subida acelerada só APÓS a ignição/liftoff (t>COUNT) ---
@@ -1857,6 +1867,8 @@ const LaunchSequence = {
       const flick = 0.85 + Math.random()*0.4;
       shipParts.flame.scale.set(flick, thr*flick, flick);
       shipParts.flame.material.opacity = 0.6 + Math.random()*0.35;
+      if (shipParts.flameLight) shipParts.flameLight.intensity=(8+Math.random()*7)*thr;
+      updateExhaust(dt,thr);
     }
 
     // --- câmera: enquadra a nave vertical na base → câmera de perseguição do jogo ---
