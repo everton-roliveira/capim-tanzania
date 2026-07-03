@@ -989,7 +989,7 @@ const bulletDroneGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6);
 const bulletDroneMat = new THREE.MeshBasicMaterial({ color:0xff4466 });
 
 // ---------- estado do jogo ----------
-let state = 'intro'; // intro | title | select | playing | gameover | win
+let state = 'intro'; // intro | title | select | playing | landing | astronaut | gameover | win
 let diff = DIFFICULTIES.medio;
 let fuel = 100, lives = 3, score = 0, distanceTravelled = 0, moonDistance = diff.moonDistance;
 let scrollSpeed = SHIP_BASE.baseScroll;
@@ -1530,6 +1530,7 @@ function startGame(diffKey) {
   ship.visible = true;
   moon.visible = false; moon.scale.set(1,1,1); moon.rotation.set(0,0,0);
   removeFlag();
+  removeAstronaut();
 
   introOverlay.style.display = 'none';
   titleOverlay.style.display = 'none';
@@ -1990,6 +1991,146 @@ function removeFlag() {
   flag = null;
 }
 
+// ---------- astronauta procedural (saída da nave + caminhada + bandeira) ----------
+const astronautSuitMat = new THREE.MeshStandardMaterial({ color:0xe8ebee, roughness:0.72, metalness:0.04 });
+const astronautJointMat = new THREE.MeshStandardMaterial({ color:0x343943, roughness:0.8, metalness:0.18 });
+const astronautVisorMat = new THREE.MeshPhysicalMaterial({
+  color:0x6b4218, emissive:0x170b02, emissiveIntensity:0.25,
+  metalness:0.78, roughness:0.12, clearcoat:1, clearcoatRoughness:0.08
+});
+const astronautPackMat = new THREE.MeshStandardMaterial({ color:0xb8bec5, roughness:0.8, metalness:0.12 });
+let astronaut=null, astronautParts=null, astronautT=0, astronautPlanted=false;
+const ASTRONAUT_DURATION=8;
+const astronautExit=new THREE.Vector3(), astronautGround=new THREE.Vector3(), astronautFlagPos=new THREE.Vector3();
+const astronautCamPos=new THREE.Vector3(), astronautLook=new THREE.Vector3();
+
+function buildAstronaut() {
+  if (astronaut) return;
+  const g=new THREE.Group();
+
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(0.48,0.62,0.3),astronautSuitMat);
+  torso.position.y=1.08; g.add(torso);
+  const chest=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.18,0.055),accentMat);
+  chest.position.set(0,1.08,0.18); g.add(chest);
+  const pack=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.58,0.24),astronautPackMat);
+  pack.position.set(0,1.1,-0.25); g.add(pack);
+
+  const helmet=new THREE.Mesh(new THREE.SphereGeometry(0.3,16,12),astronautSuitMat);
+  helmet.position.y=1.61; g.add(helmet);
+  const visor=new THREE.Mesh(new THREE.SphereGeometry(0.245,16,10,0,Math.PI*2,0,Math.PI*0.58),astronautVisorMat);
+  visor.scale.set(1,0.78,0.45); visor.rotation.x=-0.12; visor.position.set(0,1.64,0.225); g.add(visor);
+  const collar=new THREE.Mesh(new THREE.TorusGeometry(0.24,0.045,8,18),astronautJointMat);
+  collar.rotation.x=Math.PI/2; collar.position.y=1.38; g.add(collar);
+
+  const makeLeg=x=>{
+    const pivot=new THREE.Group(); pivot.position.set(x,0.82,0); g.add(pivot);
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.105,0.12,0.58,8),astronautSuitMat);
+    leg.position.y=-0.27; pivot.add(leg);
+    const boot=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.16,0.34),astronautJointMat);
+    boot.position.set(0,-0.59,0.07); pivot.add(boot);
+    return pivot;
+  };
+  const makeArm=x=>{
+    const pivot=new THREE.Group(); pivot.position.set(x,1.3,0); g.add(pivot);
+    const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.095,0.55,8),astronautSuitMat);
+    arm.position.y=-0.25; pivot.add(arm);
+    const glove=new THREE.Mesh(new THREE.SphereGeometry(0.105,8,6),astronautSuitMat);
+    glove.position.y=-0.55; pivot.add(glove);
+    return pivot;
+  };
+  const leftLeg=makeLeg(-0.14), rightLeg=makeLeg(0.14);
+  const leftArm=makeArm(-0.34), rightArm=makeArm(0.34);
+
+  // Haste compacta carregada até o ponto de plantio.
+  const carriedPole=new THREE.Group(); carriedPole.position.set(0.43,0.9,0.08); carriedPole.rotation.z=-0.18;
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,1.65,6),flagPoleMat); carriedPole.add(pole);
+  const foldedFlag=new THREE.Mesh(new THREE.PlaneGeometry(0.42,0.28),flagClothMat);
+  foldedFlag.position.set(0.21,0.66,0); carriedPole.add(foldedFlag); g.add(carriedPole);
+
+  g.scale.setScalar(0.82);
+  g.traverse(obj=>{ if(obj.isMesh){ obj.castShadow=true; obj.receiveShadow=true; } });
+  g.visible=false; scene.add(g);
+  astronaut=g;
+  astronautParts={leftLeg,rightLeg,leftArm,rightArm,carriedPole};
+}
+
+function removeAstronaut() {
+  if (!astronaut) return;
+  astronaut.visible=false;
+  astronautParts.carriedPole.visible=true;
+  astronaut.rotation.set(0,0,0);
+}
+
+function startAstronautSequence() {
+  state='astronaut';
+  astronautT=0; astronautPlanted=false;
+  buildAstronaut();
+  astronautParts.carriedPole.visible=true;
+  astronautExit.set(touchdown.x+0.38,touchdown.y+1.45,touchdown.z+0.08);
+  astronautGround.set(touchdown.x+0.72,touchdown.y,touchdown.z+0.08);
+  astronautFlagPos.set(touchdown.x+2.18,touchdown.y,touchdown.z+0.28);
+  astronaut.position.copy(astronautExit);
+  astronaut.rotation.set(0,Math.PI/2,0);
+  astronaut.visible=true;
+  RadioChatter.stop();
+  showStageMsg('TRIPULAÇÃO EM SOLO LUNAR');
+}
+
+function finishAstronautSequence() {
+  AudioSys.win();
+  state='win';
+  ship.visible=true;
+  winPanel.textContent=
+    `A CAPIM-X POUSOU NA LUA\n\nDificuldade: ${diff.label}\nScore: ${Math.floor(score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`;
+  winOverlay.style.display='flex';
+}
+
+function updateAstronautSequence(dt) {
+  updateWinIdle(dt); // Lua, poeira e dissipação da última pluma continuam vivas.
+  astronautT=Math.min(1,astronautT+dt/ASTRONAUT_DURATION);
+  const t=astronautT;
+  astronautParts.leftLeg.rotation.set(0,0,0); astronautParts.rightLeg.rotation.set(0,0,0);
+  astronautParts.leftArm.rotation.set(0,0,0); astronautParts.rightArm.rotation.set(0,0,0);
+
+  if (t<0.24) {
+    const p=smoothstep(t/0.24);
+    astronaut.position.lerpVectors(astronautExit,astronautGround,p);
+    astronaut.rotation.z=Math.sin(p*Math.PI)*0.08;
+    astronautParts.leftLeg.rotation.x=Math.sin(p*Math.PI*3)*0.22;
+    astronautParts.rightLeg.rotation.x=-astronautParts.leftLeg.rotation.x;
+  } else if (t<0.66) {
+    const p=(t-0.24)/0.42, e=smoothstep(p), stride=Math.sin(p*Math.PI*8)*0.48;
+    astronaut.position.lerpVectors(astronautGround,astronautFlagPos,e);
+    astronaut.position.y+=Math.abs(Math.sin(p*Math.PI*8))*0.035;
+    astronaut.rotation.z=0;
+    astronautParts.leftLeg.rotation.x=stride; astronautParts.rightLeg.rotation.x=-stride;
+    astronautParts.leftArm.rotation.x=-stride*0.55; astronautParts.rightArm.rotation.x=stride*0.35;
+  } else if (t<0.84) {
+    const p=smoothstep((t-0.66)/0.18);
+    astronaut.position.copy(astronautFlagPos);
+    astronaut.rotation.z=-p*0.2;
+    astronautParts.rightLeg.rotation.z=-p*0.75;
+    astronautParts.leftArm.rotation.z=p*0.55;
+    if (p>0.62&&!astronautPlanted) {
+      astronautPlanted=true;
+      astronautParts.carriedPole.visible=false;
+      plantFlag();
+    }
+  } else {
+    const p=smoothstep((t-0.84)/0.16);
+    astronaut.position.copy(astronautFlagPos);
+    astronaut.rotation.z=-0.2*(1-p);
+    astronautParts.rightLeg.rotation.z=-0.75*(1-p);
+    astronautParts.rightArm.rotation.z=THREE.MathUtils.lerp(0,-2.25,p); // saudação final
+  }
+
+  astronautCamPos.set(touchdown.x+5.4,touchdown.y+3.0,touchdown.z+7.4);
+  camera.position.lerp(astronautCamPos,1-Math.exp(-2.4*dt));
+  astronautLook.copy(astronaut.position); astronautLook.y+=0.9;
+  camera.lookAt(astronautLook);
+  if (t>=1) finishAstronautSequence();
+}
+
 function startLanding() {
   state = 'landing';
   landingT = 0;
@@ -2056,14 +2197,7 @@ function spawnDust(origin=touchdown, count=18) {
 
 function finishLanding() {
   spawnDust();
-  plantFlag();
-  RadioChatter.stop();   // silencia o chatter antes do tema de conquista
-  AudioSys.win();
-  state = 'win';
-  ship.visible = true;   // fica pousada e visível
-  winPanel.textContent =
-    `A CAPIM-X POUSOU NA LUA\n\nDificuldade: ${diff.label}\nScore: ${Math.floor(score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`;
-  winOverlay.style.display = 'flex';
+  startAstronautSequence();
 }
 
 function updateWinIdle(dt) {
@@ -2093,6 +2227,7 @@ function animate() {
   updateComet(dt); // roda em qualquer estado — o cometa também cruza o céu do menu
   updateImpactEffects(dt);
   if (state === 'landing') { updateLanding(dt); renderer.render(scene, camera); return; }
+  if (state === 'astronaut') { updateAstronautSequence(dt); renderer.render(scene, camera); return; }
   if (state === 'win')     { updateWinIdle(dt); renderer.render(scene, camera); return; }
   if (state !== 'playing') {
     renderer.render(scene, camera);
