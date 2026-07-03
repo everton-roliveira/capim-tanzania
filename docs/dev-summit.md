@@ -25,21 +25,27 @@ A missão é simples de explicar e difícil de cumprir: **atire, desvie, abaste�
 4. **Eventos Aleatórios**
 
 - **Evolução para 3D** — o jogo nasceu em 2D. Já tínhamos feito os efeitos sonoros quando surgiu o primeiro evento aleatório do jogo — e a partir dele decidimos transformar o jogo em 3D.
+- **"Legal o jogo, mas como ele ganha dinheiro?"** — desafio sorteado sobre monetização. Os ingredientes de uma economia fictícia pro jogo:
+  - **Uma moeda** — o jogador ganha "créditos" (ou combustível, estrelas, minérios...) ao jogar. Ex.: chegou na Lua = +100 créditos; chegou perto = +30.
+  - **Uma loja / upgrades** — com esses créditos ele compra melhorias: motor mais forte, tanque maior, escudo contra detritos, um foguete diferente.
+  - **Progressão que fica salva** — o que ele comprou continua lá na próxima vez. O jogo "lembra" do jogador.
+  - **(Opcional) Um item premium** — algo que, num jogo real, você pagaria para ter. No desafio é fictício, só para mostrar o conceito de monetização.
 
 5. **Stack**
 
-- **Engine**: [Phaser 3](https://phaser.io/) (v3.70.0, via CDN) — física arcade, colisões, grupos e câmera.
-- **Frontend**: HTML/CSS/JS puro, sem framework e sem build step — arquivo único.
-- **Sprites**: gerados via `Graphics API` do próprio Phaser, sem nenhum asset de imagem externo.
-- **Áudio**: Web Audio API, com música e efeitos sonoros sintetizados proceduralmente (sem arquivos de áudio).
-- **Versionamento**: Git/GitHub.
-- **Deploy**: nenhum — é um HTML estático, roda direto no navegador.
+- **Engines**: [Phaser 3](https://phaser.io/) (v3.70.0, via CDN) no jogo 2D original; [Three.js](https://threejs.org/) (r128, via CDN) no protótipo 3D — cena, câmera, física simplificada, luzes e geometria proceduralizadas em ambos.
+- **Frontend**: HTML/CSS/JS puro, sem framework e sem build step — cada jogo é um arquivo único.
+- **Sprites/Modelos**: gerados via código (Graphics API do Phaser no 2D; primitivas e materiais do Three.js no 3D) — sem assets de imagem externos, com exceção do logo da Capim usado na bandeira.
+- **Áudio**: síntese via Web Audio API, combinada com dois clipes de áudio real (Apollo 11 e Space Shuttle Launch Countdown) sobrepostos durante o jogo 3D.
+- **Versionamento**: Git/GitHub, com o time trabalhando em paralelo por branches e pull requests.
+- **Deploy**: nenhum — são HTMLs estáticos, rodam direto no navegador.
 
 6. **Como utilizamos a IA**
 
-O projeto foi "vibe-coded" do início ao fim com a Claude (Opus 4.8, 1M de contexto), da primeira versão jogável até a trilha sonora e os efeitos sonoros procedurais.
+O projeto inteiro foi "vibe-coded" por um time trabalhando em paralelo, cada um na sua branch, com modelos da Claude como par de programação do início ao fim:
 
-- A IA implementou a lógica do jogo (física de movimento, colisões, curva de dificuldade progressiva por distância) a partir de descrições do conceito e ajustes de gameplay.
-- Os sprites e o áudio foram gerados por código (Graphics API e Web Audio API), sem nenhum asset externo, com a IA escrevendo as texturas e os sintetizadores de som.
-- Decisões de design (ex.: balanceamento de thrust/drag, dificuldades, narrativa) foram guiadas em conversa, com a IA propondo e iterando a implementação.
-- A co-autoria da IA é registrada diretamente nos commits (`Co-Authored-By: Claude Opus 4.8`).
+- **Claude Opus 4.8 (1M de contexto)** — trilha sonora e efeitos procedurais, tema de abertura e de vitória, terreno 3D da Lua (crateras, mares, ejecta) com cutscene de pouso e modo debug, overlay de áudio real da Apollo 11, cutscene cinematográfica de lançamento e o redesenho da intro/menu do 3D.
+- **Claude Fable 5** — renomeação da nave para Capim-X com o crawl estilo Star Wars no menu, e a nave multi-estágio com separação de componentes (boosters, 1º e 2º estágios), incluindo otimizações de performance.
+- **Claude Sonnet 5** — expansão do README e da documentação do processo, o redesenho iterativo do pickup de combustível (do cilindro neon ao tanque pressurizado) e a bandeira com o logo da Capim plantada na Lua.
+
+Em todos os casos, a IA implementou a lógica de jogo, gerou geometrias/texturas por código e escreveu os sintetizadores de áudio a partir de descrições do conceito — com decisões de design (balanceamento, cores de marca, narrativa) guiadas em conversa. A co-autoria fica registrada diretamente nos commits (`Co-Authored-By`).
