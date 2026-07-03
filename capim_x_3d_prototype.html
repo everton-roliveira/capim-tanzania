@@ -17,6 +17,10 @@
   }
 
   #hud { position:fixed; inset:0; pointer-events:none; z-index:4; color:#fff; }
+  #hud::after {
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(ellipse at center, transparent 52%, rgba(0,0,8,0.2) 76%, rgba(0,0,5,0.62) 100%);
+  }
   #shipLabel   { position:absolute; left:14px; bottom:10px; font-size:11px; color:#5577aa; }
   #scoreText   { position:absolute; right:14px; top:14px; font-size:16px; }
   #livesText   { position:absolute; left:14px; top:40px; font-size:16px; }
@@ -536,9 +540,15 @@ const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight, 0.1, 2000
 camera.position.set(0, 9, 12);
 camera.lookAt(0, -3, -26);
 
-const renderer = new THREE.WebGLRenderer({ antialias:true });
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.physicallyCorrectLights = true;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 addEventListener('resize', () => {
@@ -547,10 +557,52 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
-scene.add(new THREE.AmbientLight(0x8899cc, 0.5));
-const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+scene.add(new THREE.AmbientLight(0x657094, 0.16));
+const sun = new THREE.DirectionalLight(0xfff4df, 2.4);
 sun.position.set(6, 12, 8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.left = sun.shadow.camera.bottom = -12;
+sun.shadow.camera.right = sun.shadow.camera.top = 12;
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 45;
+sun.shadow.bias = -0.0004;
 scene.add(sun);
+scene.add(sun.target);
+
+// Texturas PBR procedurais: continuam leves e preservam o jogo em um único HTML.
+function makeRockSurface(seed, baseColor, craterCount=12) {
+  const size=256, albedo=document.createElement('canvas'), height=document.createElement('canvas');
+  albedo.width=albedo.height=height.width=height.height=size;
+  const ac=albedo.getContext('2d'), hc=height.getContext('2d');
+  const ai=ac.createImageData(size,size), hi=hc.createImageData(size,size);
+  const base=new THREE.Color(baseColor);
+  let s=seed|0;
+  const rnd=()=>((s=Math.imul(s^s>>>15,1|s)), ((s+s^s>>>7)>>>0)/4294967296);
+  const craters=Array.from({length:craterCount},()=>({x:rnd()*size,y:rnd()*size,r:5+rnd()*24}));
+  for (let y=0;y<size;y++) for (let x=0;x<size;x++) {
+    const i=(y*size+x)*4;
+    let h=0.54 + Math.sin((x+seed)*0.075)*0.07 + Math.sin((y-seed)*0.11)*0.055
+      + Math.sin((x+y)*0.035)*0.06 + (rnd()-0.5)*0.11;
+    for (const c of craters) {
+      const dx=x-c.x, dy=y-c.y, d=Math.sqrt(dx*dx+dy*dy)/c.r;
+      if (d<1) h -= (1-d)*0.26;
+      else if (d<1.18) h += (1.18-d)*0.34;
+    }
+    h=THREE.MathUtils.clamp(h,0.12,0.92);
+    const shade=0.55+h*0.72;
+    ai.data[i]=Math.min(255,base.r*255*shade);
+    ai.data[i+1]=Math.min(255,base.g*255*shade);
+    ai.data[i+2]=Math.min(255,base.b*255*shade);
+    ai.data[i+3]=255;
+    hi.data[i]=hi.data[i+1]=hi.data[i+2]=h*255; hi.data[i+3]=255;
+  }
+  ac.putImageData(ai,0,0); hc.putImageData(hi,0,0);
+  const map=new THREE.CanvasTexture(albedo), bumpMap=new THREE.CanvasTexture(height);
+  map.encoding=THREE.sRGBEncoding;
+  [map,bumpMap].forEach(t=>{ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy()); });
+  return {map,bumpMap};
+}
 
 // ---------- lua (relevo 3D procedural) ----------
 // Duas texturas geradas em canvas: um HEIGHTMAP (piso rebaixado + borda
@@ -633,6 +685,7 @@ const moon = new THREE.Mesh(
 );
 moon.position.set(20, 30, -1800);
 moon.visible = false;
+moon.receiveShadow = true;
 scene.add(moon);
 // halo sutil de atmosfera/luz (filho: acompanha posição e escala da Lua)
 const moonGlow = new THREE.Mesh(
@@ -725,12 +778,12 @@ const ship = new THREE.Group();
 ship.visible = false;
 scene.add(ship);
 
-const hullMat   = new THREE.MeshStandardMaterial({ color:0xa6cd15, flatShading:true, roughness:0.6 });   // verde Capim
-const accentMat = new THREE.MeshStandardMaterial({ color:0x59399e, flatShading:true, roughness:0.8 });   // detalhes roxos
-const tankMat   = new THREE.MeshStandardMaterial({ color:0xa6cd15, flatShading:true, roughness:0.9 });
+const hullMat   = new THREE.MeshPhysicalMaterial({ color:0xa6cd15, metalness:0.35, roughness:0.32, clearcoat:0.35, clearcoatRoughness:0.28 });
+const accentMat = new THREE.MeshStandardMaterial({ color:0x59399e, metalness:0.5, roughness:0.38 });
+const tankMat   = new THREE.MeshStandardMaterial({ color:0xa6cd15, metalness:0.2, roughness:0.48 });
 const nozzleMat = new THREE.MeshStandardMaterial({ color:0x444a55, flatShading:true, metalness:0.6, roughness:0.4 });
-const windowMat = new THREE.MeshStandardMaterial({ color:0x3399ff, emissive:0x113355, emissiveIntensity:0.6 });
-const boosterTipMat = new THREE.MeshStandardMaterial({ color:0x59399e, flatShading:true, roughness:0.7 });
+const windowMat = new THREE.MeshPhysicalMaterial({ color:0x173c66, emissive:0x0b2744, emissiveIntensity:0.8, metalness:0.05, roughness:0.08, clearcoat:1 });
+const boosterTipMat = new THREE.MeshStandardMaterial({ color:0x59399e, metalness:0.35, roughness:0.4 });
 const flameMat  = new THREE.MeshBasicMaterial({ color:0xffaa33, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false });
 
 // cilindro com o eixo ao longo de Z (rBack = raio traseiro, rFront = dianteiro)
@@ -752,7 +805,7 @@ function nozzle(r, len, mat) {
   return m;
 }
 
-const shipParts = { boosters:[], stage1:null, stage2:null, flame:null };
+const shipParts = { boosters:[], stage1:null, stage2:null, flame:null, flameLight:null };
 let massMul = 1;          // <1 depois das separações: nave mais leve e ágil
 const debris = [];        // estágios ejetados tombando pelo espaço
 
@@ -814,7 +867,14 @@ function buildShip() {
   flame.rotation.x = Math.PI/2;
   ship.add(flame);
   shipParts.flame = flame;
+  const flameLight = new THREE.PointLight(0xff7a24, 12, 5, 2);
+  ship.add(flameLight);
+  shipParts.flameLight = flameLight;
   moveFlame();
+
+  ship.traverse(obj => {
+    if (obj.isMesh && obj !== shipParts.flame) { obj.castShadow=true; obj.receiveShadow=true; }
+  });
 }
 
 // reposiciona a chama no bocal do estágio ativo mais traseiro
@@ -823,6 +883,7 @@ function moveFlame() {
   if (shipParts.stage1)      shipParts.flame.position.z = 1.85;
   else if (shipParts.stage2) shipParts.flame.position.z = 1.0;
   else                       shipParts.flame.position.z = 0.34;
+  if (shipParts.flameLight) shipParts.flameLight.position.set(0,0,shipParts.flame.position.z+0.3);
 }
 
 buildShip();
@@ -877,10 +938,31 @@ function performSeparation(sep) {
 // ---------- materiais / geometrias reutilizados ----------
 // Geometrias são compartilhadas (nunca descartadas): alocar uma nova por
 // pedra/meteoro gera pressão de GC e engasgos perceptíveis durante o jogo.
-const rockMats = [0x5c3a63, 0x4a2f4f, 0x3a2340].map(c => new THREE.MeshStandardMaterial({ color:c, flatShading:true }));
+const rockColors = [0x5c4d48, 0x493d39, 0x6a5650];
+const rockSurfaces = rockColors.map((c,i)=>makeRockSurface(1200+i*811,c,10+i*2));
+const rockMats = rockSurfaces.map(s => new THREE.MeshStandardMaterial({ map:s.map, bumpMap:s.bumpMap, bumpScale:0.12, roughness:0.97, metalness:0.01 }));
 const rockGeoPool = Array.from({length:8}, () => new THREE.IcosahedronGeometry(1, 0));
-const meteorMat = new THREE.MeshStandardMaterial({ color:0x8b6f47, flatShading:true });
-const meteorGeo = new THREE.IcosahedronGeometry(0.55, 0);
+const meteorColors = [0x806b57, 0x67584d, 0x927761];
+const meteorSurfaces = meteorColors.map((c,i)=>makeRockSurface(4200+i*977,c,15+i*2));
+const meteorMats = meteorSurfaces.map(s => new THREE.MeshStandardMaterial({
+  map:s.map, bumpMap:s.bumpMap, bumpScale:0.1, flatShading:true, roughness:0.96, metalness:0.02
+}));
+// Poucas geometrias irregulares compartilhadas: variedade sem criar uma malha a cada spawn.
+const meteorGeoPool = Array.from({length:6}, (_, seed) => {
+  const geo = new THREE.IcosahedronGeometry(0.55, 2);
+  const pos = geo.attributes.position;
+  for (let i=0; i<pos.count; i++) {
+    const x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
+    // A deformação depende da posição: vértices duplicados recebem o mesmo valor
+    // e as faces continuam fechadas, sem rachaduras na malha.
+    const noise = Math.sin(x*31.7 + y*57.3 + z*91.1 + seed*17.9) * 43758.5453;
+    const deformation = 0.72 + (noise-Math.floor(noise))*0.44;
+    pos.setXYZ(i, x*deformation, y*deformation, z*deformation);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+});
 const droneBodyGeo = new THREE.SphereGeometry(0.42, 8, 6);
 const droneMat = new THREE.MeshStandardMaterial({ color:0x667788, flatShading:true });
 const droneSensorGeo = new THREE.SphereGeometry(0.14, 6, 6);
@@ -907,7 +989,7 @@ const bulletDroneGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6);
 const bulletDroneMat = new THREE.MeshBasicMaterial({ color:0xff4466 });
 
 // ---------- estado do jogo ----------
-let state = 'intro'; // intro | title | select | playing | gameover | win
+let state = 'intro'; // intro | title | select | playing | landing | astronaut | gameover | win
 let diff = DIFFICULTIES.medio;
 let fuel = 100, lives = 3, score = 0, distanceTravelled = 0, moonDistance = diff.moonDistance;
 let scrollSpeed = SHIP_BASE.baseScroll;
@@ -926,6 +1008,128 @@ const drones = [];
 const fuelCells = [];
 const playerBullets = [];
 const droneBullets = [];
+const impactEffects = [];
+
+// Exaustão em espaço de mundo: as partículas ficam para trás enquanto a nave avança.
+const EXHAUST_COUNT = 90;
+const exhaustPositions = new Float32Array(EXHAUST_COUNT*3);
+const exhaustColors = new Float32Array(EXHAUST_COUNT*3);
+const exhaustVelocities = Array.from({length:EXHAUST_COUNT},()=>new THREE.Vector3());
+const exhaustLife = new Float32Array(EXHAUST_COUNT);
+const exhaustMaxLife = new Float32Array(EXHAUST_COUNT);
+const exhaustOrigin = new THREE.Vector3();
+const exhaustDirection = new THREE.Vector3();
+const exhaustJitter = new THREE.Vector3();
+const exhaustGeo = new THREE.BufferGeometry();
+exhaustGeo.setAttribute('position',new THREE.BufferAttribute(exhaustPositions,3));
+exhaustGeo.setAttribute('color',new THREE.BufferAttribute(exhaustColors,3));
+
+// Sprite radial compartilhado: elimina o aspecto quadrado dos Points e permite
+// sobrepor um núcleo quente a uma pluma de fumaça suave sem dobrar a simulação.
+const plumeCanvas=document.createElement('canvas');
+plumeCanvas.width=plumeCanvas.height=64;
+const plumeCtx=plumeCanvas.getContext('2d');
+const plumeGradient=plumeCtx.createRadialGradient(32,32,0,32,32,32);
+plumeGradient.addColorStop(0,'rgba(255,255,255,1)');
+plumeGradient.addColorStop(0.28,'rgba(255,255,255,0.88)');
+plumeGradient.addColorStop(0.68,'rgba(255,255,255,0.24)');
+plumeGradient.addColorStop(1,'rgba(255,255,255,0)');
+plumeCtx.fillStyle=plumeGradient; plumeCtx.fillRect(0,0,64,64);
+const plumeTexture=new THREE.CanvasTexture(plumeCanvas);
+
+const exhaustMat=new THREE.PointsMaterial({
+  size:0.16, vertexColors:true, transparent:true, opacity:0.86,
+  map:plumeTexture, alphaTest:0.015, blending:THREE.AdditiveBlending,
+  depthWrite:false, sizeAttenuation:true
+});
+const smokeMat=new THREE.PointsMaterial({
+  size:0.48, color:0x8a91a0, transparent:true, opacity:0.2,
+  map:plumeTexture, alphaTest:0.01, blending:THREE.NormalBlending,
+  depthWrite:false, sizeAttenuation:true
+});
+const exhaustPoints = new THREE.Points(exhaustGeo,exhaustMat);
+const smokePoints = new THREE.Points(exhaustGeo,smokeMat);
+exhaustPoints.frustumCulled=false;
+smokePoints.frustumCulled=false;
+smokePoints.renderOrder=-1;
+scene.add(smokePoints,exhaustPoints);
+
+function resetExhaust() {
+  exhaustLife.fill(0);
+  for (let i=0;i<EXHAUST_COUNT;i++) exhaustPositions[i*3+1]=-9999;
+  exhaustGeo.attributes.position.needsUpdate=true;
+}
+resetExhaust();
+
+function updateExhaust(dt, thrustLevel) {
+  const nozzleZ = shipParts.flame ? shipParts.flame.position.z : 0.4;
+  exhaustOrigin.set(0,0,nozzleZ+0.25).applyQuaternion(ship.quaternion).add(ship.position);
+  exhaustDirection.set(0,0,1).applyQuaternion(ship.quaternion).normalize();
+  // A pluma permanece visível no cruzeiro e ganha volume sob maior empuxo.
+  exhaustMat.size=0.15+Math.min(thrustLevel,2.8)*0.025;
+  smokeMat.size=0.42+Math.min(thrustLevel,2.8)*0.09;
+  smokeMat.opacity=0.14+Math.min(thrustLevel,2.8)*0.055;
+  for (let i=0;i<EXHAUST_COUNT;i++) {
+    const j=i*3;
+    exhaustLife[i]-=dt;
+    if (exhaustLife[i]<=0) {
+      if (Math.random()>Math.min(1,dt*70*thrustLevel)) {
+        exhaustPositions[j+1]=-9999;
+        continue;
+      }
+      const life=THREE.MathUtils.randFloat(0.38,0.92);
+      exhaustLife[i]=exhaustMaxLife[i]=life;
+      exhaustJitter.set(THREE.MathUtils.randFloat(-0.11,0.11),THREE.MathUtils.randFloat(-0.08,0.08),0).applyQuaternion(ship.quaternion);
+      exhaustPositions[j]=exhaustOrigin.x+exhaustJitter.x;
+      exhaustPositions[j+1]=exhaustOrigin.y+exhaustJitter.y;
+      exhaustPositions[j+2]=exhaustOrigin.z+exhaustJitter.z;
+      exhaustJitter.set(THREE.MathUtils.randFloat(-0.34,0.34),THREE.MathUtils.randFloat(-0.28,0.28),0).applyQuaternion(ship.quaternion);
+      exhaustVelocities[i].copy(exhaustDirection)
+        .multiplyScalar(THREE.MathUtils.randFloat(1.8,3.8)*thrustLevel)
+        .add(exhaustJitter);
+    } else {
+      exhaustPositions[j]+=exhaustVelocities[i].x*dt;
+      exhaustPositions[j+1]+=exhaustVelocities[i].y*dt;
+      exhaustPositions[j+2]+=exhaustVelocities[i].z*dt;
+    }
+    const t=Math.max(0,exhaustLife[i]/exhaustMaxLife[i]);
+    exhaustColors[j]=1;
+    exhaustColors[j+1]=0.22+0.65*t;
+    exhaustColors[j+2]=0.06+0.7*t;
+  }
+  exhaustGeo.attributes.position.needsUpdate=true;
+  exhaustGeo.attributes.color.needsUpdate=true;
+}
+
+function spawnImpact(position, scale=1, color=0xff8a32) {
+  const count=24, positions=new Float32Array(count*3), velocities=[];
+  for (let i=0;i<count;i++) {
+    const dir=new THREE.Vector3(Math.random()*2-1,Math.random()*2-1,Math.random()*2-1).normalize();
+    velocities.push(dir.multiplyScalar(THREE.MathUtils.randFloat(1.8,6)*scale));
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(positions,3));
+  const mat=new THREE.PointsMaterial({ color, size:0.13*scale, transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false });
+  const points=new THREE.Points(geo,mat);
+  points.position.copy(position); points.frustumCulled=false; scene.add(points);
+  impactEffects.push({points,velocities,age:0,life:THREE.MathUtils.randFloat(0.42,0.68)});
+}
+
+function updateImpactEffects(dt) {
+  for (let i=impactEffects.length-1;i>=0;i--) {
+    const fx=impactEffects[i], pos=fx.points.geometry.attributes.position;
+    fx.age+=dt;
+    for (let p=0;p<fx.velocities.length;p++) {
+      pos.setXYZ(p,pos.getX(p)+fx.velocities[p].x*dt,pos.getY(p)+fx.velocities[p].y*dt,pos.getZ(p)+fx.velocities[p].z*dt);
+      fx.velocities[p].multiplyScalar(Math.exp(-2.8*dt));
+    }
+    pos.needsUpdate=true;
+    fx.points.material.opacity=Math.max(0,1-fx.age/fx.life);
+    if (fx.age>=fx.life) {
+      scene.remove(fx.points); fx.points.geometry.dispose(); fx.points.material.dispose(); impactEffects.splice(i,1);
+    }
+  }
+}
 
 // ---------- corredor procedural (nuvem de asteroides) ----------
 function buildBeltSegment(z) {
@@ -1010,10 +1214,34 @@ function trySpawnObstacles(z, leftEdge, rightEdge) {
 }
 
 function spawnMeteor(x, z) {
-  const mesh = new THREE.Mesh(meteorGeo, meteorMat);
-  mesh.position.set(x, 0, z);
+  const radius = THREE.MathUtils.randFloat(0.42, 0.78);
+  const mesh = new THREE.Mesh(
+    meteorGeoPool[(Math.random()*meteorGeoPool.length)|0],
+    meteorMats[(Math.random()*meteorMats.length)|0]
+  );
+  mesh.scale.set(
+    radius/0.55*THREE.MathUtils.randFloat(0.82,1.18),
+    radius/0.55*THREE.MathUtils.randFloat(0.82,1.18),
+    radius/0.55*THREE.MathUtils.randFloat(0.82,1.18)
+  );
+  mesh.position.set(x, THREE.MathUtils.randFloat(-0.3,0.3), z);
+  mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
   scene.add(mesh);
-  meteors.push({ mesh, extraSpeed: THREE.MathUtils.randFloat(1.4,4), spin: THREE.MathUtils.randFloat(-2.5,2.5) });
+  meteors.push({
+    mesh, radius,
+    velocity: new THREE.Vector3(
+      THREE.MathUtils.randFloat(-0.32,0.32),
+      THREE.MathUtils.randFloat(-0.08,0.08),
+      THREE.MathUtils.randFloat(1.4,4)
+    ),
+    angularVelocity: new THREE.Vector3(
+      THREE.MathUtils.randFloat(-1.8,1.8),
+      THREE.MathUtils.randFloat(-1.8,1.8),
+      THREE.MathUtils.randFloat(-1.8,1.8)
+    )
+  });
 }
 
 function spawnDrone(x, z) {
@@ -1023,6 +1251,7 @@ function spawnDrone(x, z) {
   sensor.position.set(0, 0.1, -0.4);
   group.add(sensor);
   group.position.set(x, 0, z);
+  group.traverse(obj=>{ if(obj.isMesh){ obj.castShadow=true; obj.receiveShadow=true; } });
   scene.add(group);
   drones.push({ mesh:group, baseX:x, phase:Math.random()*1000, closingSpeed:THREE.MathUtils.randFloat(0.8,1.6), fireCd:THREE.MathUtils.randFloat(900,2200) });
 }
@@ -1073,6 +1302,8 @@ function clearAllEntities() {
   playerBullets.splice(0).forEach(b => scene.remove(b.mesh));
   droneBullets.splice(0).forEach(b => scene.remove(b.mesh));
   debris.splice(0).forEach(d => scene.remove(d.mesh));
+  impactEffects.splice(0).forEach(fx=>{ scene.remove(fx.points); fx.points.geometry.dispose(); fx.points.material.dispose(); });
+  resetExhaust();
   dustParts.splice(0).forEach(d => scene.remove(d.mesh));
   segments.splice(0).forEach(removeBeltSegment);
 }
@@ -1084,7 +1315,7 @@ function clearAllEntities() {
 // Materiais que só entram em cena via spawn ganham um mesh invisível de aquecimento.
 const warmup = new THREE.Group();
 warmup.visible = false;
-[[meteorGeo, meteorMat], [droneBodyGeo, droneMat], [droneSensorGeo, droneSensorMat],
+[[meteorGeoPool[0], meteorMats[0]], [droneBodyGeo, droneMat], [droneSensorGeo, droneSensorMat],
  [tankBodyGeo, tankBodyMat], [tankCapGeo, tankBodyMat], [tankStripeGeo, tankStripeMat],
  [tankWindowGeo, tankWindowMat], [tankValveGeo, tankValveMat], [tankWheelGeo, tankWheelMat],
  [bulletPlayerGeo, bulletPlayerMat], [bulletDroneGeo, bulletDroneMat]]
@@ -1102,6 +1333,8 @@ function flashHit() {
 function damagePlayer() {
   if (invulnerable || state !== 'playing' || debugGod) return;
   lives--;
+  spawnImpact(ship.position,1.35,0xffb45c);
+  cameraShake = Math.max(cameraShake,0.55);
   AudioSys.explosion();
   flashHit();
   updateHUD();
@@ -1119,7 +1352,8 @@ function handleCollisions() {
     const b = playerBullets[bi];
     for (let mi=meteors.length-1; mi>=0; mi--) {
       const m = meteors[mi];
-      if (dist2(b.mesh.position, m.mesh.position) < sq(0.25+0.55)) {
+      if (dist2(b.mesh.position, m.mesh.position) < sq(0.25+m.radius)) {
+        spawnImpact(m.mesh.position,m.radius/0.55);
         scene.remove(b.mesh); playerBullets.splice(bi,1);
         scene.remove(m.mesh); meteors.splice(mi,1);
         score += 10; AudioSys.explosion();
@@ -1129,6 +1363,7 @@ function handleCollisions() {
     for (let di=drones.length-1; di>=0; di--) {
       const d = drones[di];
       if (dist2(b.mesh.position, d.mesh.position) < sq(0.25+0.5)) {
+        spawnImpact(d.mesh.position,1,0xff496c);
         scene.remove(b.mesh); playerBullets.splice(bi,1);
         scene.remove(d.mesh); drones.splice(di,1);
         score += 25; AudioSys.explosion();
@@ -1139,7 +1374,7 @@ function handleCollisions() {
 
   for (let i=meteors.length-1;i>=0;i--) {
     const m = meteors[i];
-    if (dist2(ship.position, m.mesh.position) < sq(shipR+0.55)) {
+    if (dist2(ship.position, m.mesh.position) < sq(shipR+m.radius)) {
       scene.remove(m.mesh); meteors.splice(i,1);
       damagePlayer();
     }
@@ -1295,6 +1530,7 @@ function startGame(diffKey) {
   ship.visible = true;
   moon.visible = false; moon.scale.set(1,1,1); moon.rotation.set(0,0,0);
   removeFlag();
+  removeAstronaut();
 
   introOverlay.style.display = 'none';
   titleOverlay.style.display = 'none';
@@ -1433,6 +1669,7 @@ document.querySelectorAll('.diff-btn').forEach(b => {
 const camOffset = new THREE.Vector3(0, 7.5, 9.5);
 const desiredCamPos = new THREE.Vector3();
 const camTarget = new THREE.Vector3();
+let cameraShake = 0;
 
 /* =======================================================
    SEQUÊNCIA DE LANÇAMENTO — cena de abertura (bloco novo,
@@ -1445,7 +1682,7 @@ const camTarget = new THREE.Vector3();
    então aqui só atualizamos nave/Terra/câmera a cada frame.
    ======================================================= */
 const LaunchSequence = {
-  earth: null, pad: null, countdownEl: null, active: false, startMs: 0, diffKey: 'medio', timers: [],
+  earth: null, pad: null, countdownEl: null, active: false, startMs: 0, lastMs: 0, diffKey: 'medio', timers: [],
   DURATION: 9500,                       // ≤10s: contagem + decolagem + atmosfera→espaço + inclinação
   COUNT: 0.315,                         // fração até o liftoff (~3s, alinhado ao "liftoff" do áudio)
   PITCH: 0.76,                          // fração onde começa a inclinar p/ horizontal
@@ -1554,6 +1791,7 @@ const LaunchSequence = {
     this.pad.visible = true;
 
     buildShip();                          // mesma nave do jogo
+    resetExhaust();
     massMul = 1;
     ship.position.set(0, this.SHIP_PAD_Y, 0);
     ship.rotation.set(Math.PI/2, 0, 0);   // VERTICAL na base (nariz para cima, +Y)
@@ -1578,7 +1816,7 @@ const LaunchSequence = {
     T(5200, () => showStageMsg('ESTRATOSFERA'));
     T(7000, () => showStageMsg('ESPAÇO'));
 
-    this.startMs = performance.now();
+    this.startMs = this.lastMs = performance.now();
     this.active = true;
     this.tick();   // roda o 1º frame já (câmera + nave no lançamento) — sem esperar o próximo rAF,
                    // assim nenhum frame é renderizado com a câmera do menu
@@ -1586,7 +1824,10 @@ const LaunchSequence = {
 
   tick() {
     if (!this.active) return;
-    const t = THREE.MathUtils.clamp((performance.now() - this.startMs)/this.DURATION, 0, 1);
+    const now = performance.now();
+    const dt = Math.min((now-this.lastMs)/1000,0.05);
+    this.lastMs = now;
+    const t = THREE.MathUtils.clamp((now - this.startMs)/this.DURATION, 0, 1);
     const smoother = x => x*x*x*(x*(x*6-15)+10);
 
     // --- subida acelerada só APÓS a ignição/liftoff (t>COUNT) ---
@@ -1628,6 +1869,8 @@ const LaunchSequence = {
       const flick = 0.85 + Math.random()*0.4;
       shipParts.flame.scale.set(flick, thr*flick, flick);
       shipParts.flame.material.opacity = 0.6 + Math.random()*0.35;
+      if (shipParts.flameLight) shipParts.flameLight.intensity=(8+Math.random()*7)*thr;
+      updateExhaust(dt,thr);
     }
 
     // --- câmera: enquadra a nave vertical na base → câmera de perseguição do jogo ---
@@ -1688,12 +1931,21 @@ const flagPoleMat = new THREE.MeshStandardMaterial({ color:0xcccccc, roughness:0
 const flagPoleGeo = new THREE.CylinderGeometry(0.03, 0.03, FLAG_POLE_HEIGHT, 6);
 const flagRodGeo = new THREE.CylinderGeometry(0.017, 0.017, 1.05, 6);
 // fina borda roxa + pano bem verde: as cores da própria Capim-X (hullMat/accentMat)
-const flagBorderMat = new THREE.MeshStandardMaterial({ color:0x59399e, roughness:0.6, side:THREE.DoubleSide });
+const flagBorderMat = new THREE.MeshStandardMaterial({ color:0x59399e, metalness:0.08, roughness:0.7, side:THREE.DoubleSide });
 const flagBorderGeo = new THREE.PlaneGeometry(1.10, 0.68);
-const flagClothMat = new THREE.MeshStandardMaterial({ color:0xa6cd15, roughness:0.6, side:THREE.DoubleSide });
-const flagClothGeo = new THREE.PlaneGeometry(1.04, 0.64);
+const flagClothMat = new THREE.MeshStandardMaterial({ color:0xa6cd15, metalness:0, roughness:0.88, side:THREE.DoubleSide });
+const flagClothGeo = new THREE.PlaneGeometry(1.04, 0.64, 12, 6);
+// Ondulação estática: sugere o pano dobrado sem fingir vento na Lua.
+for (let i=0;i<flagClothGeo.attributes.position.count;i++) {
+  const x=flagClothGeo.attributes.position.getX(i), y=flagClothGeo.attributes.position.getY(i);
+  flagClothGeo.attributes.position.setZ(i,Math.sin((x+0.52)*16+y*3)*0.018*(0.7-Math.abs(y)));
+}
+flagClothGeo.attributes.position.needsUpdate=true;
+flagClothGeo.computeVertexNormals();
 const flagLogoTex = new THREE.TextureLoader().load('capim-logo.png');
-const flagLogoMat = new THREE.MeshBasicMaterial({ map:flagLogoTex, transparent:true, side:THREE.DoubleSide });
+flagLogoTex.encoding=THREE.sRGBEncoding;
+flagLogoTex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+const flagLogoMat = new THREE.MeshStandardMaterial({ map:flagLogoTex, transparent:true, roughness:0.82, metalness:0, side:THREE.DoubleSide });
 const flagLogoGeo = new THREE.PlaneGeometry(1.0, 0.5);
 
 let flag = null;
@@ -1728,13 +1980,158 @@ function plantFlag() {
 
   // afastada mais pro lado pra não ficar atrás do painel central de vitória
   group.position.set(touchdown.x + 2.8, touchdown.y, touchdown.z + 0.3);
+  group.traverse(obj=>{ if(obj.isMesh){ obj.castShadow=true; obj.receiveShadow=true; } });
   scene.add(group);
   flag = group;
+  spawnDust(group.position,8);
 }
 function removeFlag() {
   if (!flag) return;
   scene.remove(flag);
   flag = null;
+}
+
+// ---------- astronauta procedural (saída da nave + caminhada + bandeira) ----------
+const astronautSuitMat = new THREE.MeshStandardMaterial({ color:0xe8ebee, roughness:0.72, metalness:0.04 });
+const astronautJointMat = new THREE.MeshStandardMaterial({ color:0x343943, roughness:0.8, metalness:0.18 });
+const astronautVisorMat = new THREE.MeshPhysicalMaterial({
+  color:0x6b4218, emissive:0x170b02, emissiveIntensity:0.25,
+  metalness:0.78, roughness:0.12, clearcoat:1, clearcoatRoughness:0.08
+});
+const astronautPackMat = new THREE.MeshStandardMaterial({ color:0xb8bec5, roughness:0.8, metalness:0.12 });
+let astronaut=null, astronautParts=null, astronautT=0, astronautPlanted=false;
+const ASTRONAUT_DURATION=8;
+// O módulo final mede ~1,55 unidade; esta escala deixa o astronauta com
+// ~0,95 unidade de altura (relação próxima de 1,65:1 entre cápsula e pessoa).
+const ASTRONAUT_SCALE=0.54;
+const astronautExit=new THREE.Vector3(), astronautGround=new THREE.Vector3(), astronautFlagPos=new THREE.Vector3();
+const astronautCamPos=new THREE.Vector3(), astronautLook=new THREE.Vector3();
+
+function buildAstronaut() {
+  if (astronaut) return;
+  const g=new THREE.Group();
+
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(0.48,0.62,0.3),astronautSuitMat);
+  torso.position.y=1.08; g.add(torso);
+  const chest=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.18,0.055),accentMat);
+  chest.position.set(0,1.08,0.18); g.add(chest);
+  const pack=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.58,0.24),astronautPackMat);
+  pack.position.set(0,1.1,-0.25); g.add(pack);
+
+  const helmet=new THREE.Mesh(new THREE.SphereGeometry(0.3,16,12),astronautSuitMat);
+  helmet.position.y=1.61; g.add(helmet);
+  const visor=new THREE.Mesh(new THREE.SphereGeometry(0.245,16,10,0,Math.PI*2,0,Math.PI*0.58),astronautVisorMat);
+  visor.scale.set(1,0.78,0.45); visor.rotation.x=-0.12; visor.position.set(0,1.64,0.225); g.add(visor);
+  const collar=new THREE.Mesh(new THREE.TorusGeometry(0.24,0.045,8,18),astronautJointMat);
+  collar.rotation.x=Math.PI/2; collar.position.y=1.38; g.add(collar);
+
+  const makeLeg=x=>{
+    const pivot=new THREE.Group(); pivot.position.set(x,0.82,0); g.add(pivot);
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.105,0.12,0.58,8),astronautSuitMat);
+    leg.position.y=-0.27; pivot.add(leg);
+    const boot=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.16,0.34),astronautJointMat);
+    boot.position.set(0,-0.59,0.07); pivot.add(boot);
+    return pivot;
+  };
+  const makeArm=x=>{
+    const pivot=new THREE.Group(); pivot.position.set(x,1.3,0); g.add(pivot);
+    const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.095,0.55,8),astronautSuitMat);
+    arm.position.y=-0.25; pivot.add(arm);
+    const glove=new THREE.Mesh(new THREE.SphereGeometry(0.105,8,6),astronautSuitMat);
+    glove.position.y=-0.55; pivot.add(glove);
+    return pivot;
+  };
+  const leftLeg=makeLeg(-0.14), rightLeg=makeLeg(0.14);
+  const leftArm=makeArm(-0.34), rightArm=makeArm(0.34);
+
+  // Haste compacta carregada até o ponto de plantio.
+  const carriedPole=new THREE.Group(); carriedPole.position.set(0.43,0.9,0.08); carriedPole.rotation.z=-0.18;
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,1.65,6),flagPoleMat); carriedPole.add(pole);
+  const foldedFlag=new THREE.Mesh(new THREE.PlaneGeometry(0.42,0.28),flagClothMat);
+  foldedFlag.position.set(0.21,0.66,0); carriedPole.add(foldedFlag); g.add(carriedPole);
+
+  g.scale.setScalar(ASTRONAUT_SCALE);
+  g.traverse(obj=>{ if(obj.isMesh){ obj.castShadow=true; obj.receiveShadow=true; } });
+  g.visible=false; scene.add(g);
+  astronaut=g;
+  astronautParts={leftLeg,rightLeg,leftArm,rightArm,carriedPole};
+}
+
+function removeAstronaut() {
+  if (!astronaut) return;
+  astronaut.visible=false;
+  astronautParts.carriedPole.visible=true;
+  astronaut.rotation.set(0,0,0);
+}
+
+function startAstronautSequence() {
+  state='astronaut';
+  astronautT=0; astronautPlanted=false;
+  buildAstronaut();
+  astronautParts.carriedPole.visible=true;
+  astronautExit.set(touchdown.x+0.38,touchdown.y+1.45,touchdown.z+0.08);
+  astronautGround.set(touchdown.x+0.72,touchdown.y,touchdown.z+0.08);
+  astronautFlagPos.set(touchdown.x+2.46,touchdown.y,touchdown.z+0.28);
+  astronaut.position.copy(astronautExit);
+  astronaut.rotation.set(0,Math.PI/2,0);
+  astronaut.visible=true;
+  RadioChatter.stop();
+  showStageMsg('TRIPULAÇÃO EM SOLO LUNAR');
+}
+
+function finishAstronautSequence() {
+  AudioSys.win();
+  state='win';
+  ship.visible=true;
+  winPanel.textContent=
+    `A CAPIM-X POUSOU NA LUA\n\nDificuldade: ${diff.label}\nScore: ${Math.floor(score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`;
+  winOverlay.style.display='flex';
+}
+
+function updateAstronautSequence(dt) {
+  updateWinIdle(dt); // Lua, poeira e dissipação da última pluma continuam vivas.
+  astronautT=Math.min(1,astronautT+dt/ASTRONAUT_DURATION);
+  const t=astronautT;
+  astronautParts.leftLeg.rotation.set(0,0,0); astronautParts.rightLeg.rotation.set(0,0,0);
+  astronautParts.leftArm.rotation.set(0,0,0); astronautParts.rightArm.rotation.set(0,0,0);
+
+  if (t<0.24) {
+    const p=smoothstep(t/0.24);
+    astronaut.position.lerpVectors(astronautExit,astronautGround,p);
+    astronaut.rotation.z=Math.sin(p*Math.PI)*0.08;
+    astronautParts.leftLeg.rotation.x=Math.sin(p*Math.PI*3)*0.22;
+    astronautParts.rightLeg.rotation.x=-astronautParts.leftLeg.rotation.x;
+  } else if (t<0.66) {
+    const p=(t-0.24)/0.42, e=smoothstep(p), stride=Math.sin(p*Math.PI*8)*0.48;
+    astronaut.position.lerpVectors(astronautGround,astronautFlagPos,e);
+    astronaut.position.y+=Math.abs(Math.sin(p*Math.PI*8))*0.035;
+    astronaut.rotation.z=0;
+    astronautParts.leftLeg.rotation.x=stride; astronautParts.rightLeg.rotation.x=-stride;
+    astronautParts.leftArm.rotation.x=-stride*0.55; astronautParts.rightArm.rotation.x=stride*0.35;
+  } else if (t<0.84) {
+    const p=smoothstep((t-0.66)/0.18);
+    astronaut.position.copy(astronautFlagPos);
+    astronaut.rotation.z=-p*0.2;
+    astronautParts.rightLeg.rotation.z=-p*0.75;
+    astronautParts.leftArm.rotation.z=p*0.55;
+    if (p>0.62&&!astronautPlanted) {
+      astronautPlanted=true;
+      astronautParts.carriedPole.visible=false;
+      plantFlag();
+    }
+  } else {
+    const p=smoothstep((t-0.84)/0.16);
+    astronaut.position.copy(astronautFlagPos);
+    astronaut.rotation.z=-0.2*(1-p);
+    astronautParts.rightLeg.rotation.z=-0.75*(1-p);
+    astronautParts.rightArm.rotation.z=THREE.MathUtils.lerp(0,-2.25,p); // saudação final
+  }
+
+  astronautCamPos.set(touchdown.x+4.6,touchdown.y+2.55,touchdown.z+6.4);
+  camera.position.lerp(astronautCamPos,1-Math.exp(-2.4*dt));
+  astronautLook.copy(astronaut.position); astronautLook.y+=0.9;
+  camera.lookAt(astronautLook);
+  if (t>=1) finishAstronautSequence();
 }
 
 function startLanding() {
@@ -1770,7 +2167,14 @@ function updateLanding(dt) {
     const retro = 0.8 + e*1.8 + Math.random()*0.3;
     shipParts.flame.scale.set(1.1, retro, 1.1);
     shipParts.flame.material.opacity = 0.6 + Math.random()*0.3;
+    if (shipParts.flameLight) shipParts.flameLight.intensity=(9+Math.random()*8)*retro;
+    updateExhaust(dt,retro);
   }
+
+  // Mantém a janela de sombras centrada na nave durante toda a descida.
+  sun.position.set(ship.position.x+8,ship.position.y+14,ship.position.z+10);
+  sun.target.position.copy(ship.position);
+  sun.target.updateMatrixWorld();
 
   moon.rotation.y += dt*0.05;
 
@@ -1784,10 +2188,10 @@ function updateLanding(dt) {
   if (landingT >= 1) finishLanding();
 }
 
-function spawnDust() {
-  for (let i = 0; i < 18; i++) {
+function spawnDust(origin=touchdown, count=18) {
+  for (let i = 0; i < count; i++) {
     const m = new THREE.Mesh(dustGeo, new THREE.MeshBasicMaterial({ color:0xc4c4d0, transparent:true, opacity:0.85 }));
-    m.position.copy(touchdown);
+    m.position.copy(origin);
     scene.add(m);
     const ang = Math.random()*Math.PI*2, sp = THREE.MathUtils.randFloat(2, 5);
     dustParts.push({ mesh:m, vel:new THREE.Vector3(Math.cos(ang)*sp, THREE.MathUtils.randFloat(1.5, 3.5), Math.sin(ang)*sp), life:1 });
@@ -1796,19 +2200,14 @@ function spawnDust() {
 
 function finishLanding() {
   spawnDust();
-  plantFlag();
-  RadioChatter.stop();   // silencia o chatter antes do tema de conquista
-  AudioSys.win();
-  state = 'win';
-  ship.visible = true;   // fica pousada e visível
-  winPanel.textContent =
-    `A CAPIM-X POUSOU NA LUA\n\nDificuldade: ${diff.label}\nScore: ${Math.floor(score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`;
-  winOverlay.style.display = 'flex';
+  startAstronautSequence();
 }
 
 function updateWinIdle(dt) {
   moon.rotation.y += dt*0.04;
   if (shipParts.flame) shipParts.flame.material.opacity = 0; // motor desligado após pousar
+  if (shipParts.flameLight) shipParts.flameLight.intensity = 0;
+  updateExhaust(dt,0); // deixa as últimas partículas se dissiparem sem gerar novas
   for (let i = dustParts.length-1; i >= 0; i--) {
     const d = dustParts[i];
     d.mesh.position.addScaledVector(d.vel, dt);
@@ -1829,7 +2228,9 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
 
   updateComet(dt); // roda em qualquer estado — o cometa também cruza o céu do menu
+  updateImpactEffects(dt);
   if (state === 'landing') { updateLanding(dt); renderer.render(scene, camera); return; }
+  if (state === 'astronaut') { updateAstronautSequence(dt); renderer.render(scene, camera); return; }
   if (state === 'win')     { updateWinIdle(dt); renderer.render(scene, camera); return; }
   if (state !== 'playing') {
     renderer.render(scene, camera);
@@ -1902,6 +2303,8 @@ function animate() {
     const flicker = 0.85 + Math.random()*0.3;
     shipParts.flame.scale.set(flicker, thrustLevel*flicker, flicker); // Y local = comprimento (aponta para trás)
     shipParts.flame.material.opacity = 0.55 + Math.random()*0.3;
+    if (shipParts.flameLight) shipParts.flameLight.intensity=(8+Math.random()*7)*thrustLevel;
+    updateExhaust(dt,thrustLevel);
   }
 
   // destroços dos estágios ejetados: tombam e ficam para trás
@@ -1935,9 +2338,11 @@ function animate() {
 
   for (let i=meteors.length-1;i>=0;i--) {
     const m = meteors[i];
-    m.mesh.position.z += m.extraSpeed*dt;
-    m.mesh.rotation.x += m.spin*dt;
-    m.mesh.rotation.y += m.spin*0.6*dt;
+    // No vácuo a trajetória e o giro permanecem constantes até uma colisão.
+    m.mesh.position.addScaledVector(m.velocity, dt);
+    m.mesh.rotation.x += m.angularVelocity.x*dt;
+    m.mesh.rotation.y += m.angularVelocity.y*dt;
+    m.mesh.rotation.z += m.angularVelocity.z*dt;
     if (m.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(m.mesh); meteors.splice(i,1); }
   }
   for (let i=drones.length-1;i>=0;i--) {
@@ -1971,7 +2376,18 @@ function animate() {
 
   updateHUD();
 
+  // A luz solar acompanha a área jogável para manter sombras precisas perto da nave.
+  sun.position.set(ship.position.x+8,ship.position.y+14,ship.position.z+10);
+  sun.target.position.copy(ship.position);
+  sun.target.updateMatrixWorld();
+
   desiredCamPos.set(ship.position.x*0.6 + camOffset.x, ship.position.y + camOffset.y, ship.position.z + camOffset.z);
+  cameraShake *= Math.exp(-8*dt);
+  if (cameraShake>0.002) {
+    desiredCamPos.x+=THREE.MathUtils.randFloatSpread(cameraShake);
+    desiredCamPos.y+=THREE.MathUtils.randFloatSpread(cameraShake*0.65);
+    desiredCamPos.z+=THREE.MathUtils.randFloatSpread(cameraShake*0.45);
+  }
   camera.position.lerp(desiredCamPos, 1 - Math.exp(-8*dt));
   camTarget.set(ship.position.x, ship.position.y - 1.4, ship.position.z - 6);
   camera.lookAt(camTarget);
