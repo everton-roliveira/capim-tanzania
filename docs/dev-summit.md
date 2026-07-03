@@ -24,4 +24,18 @@ A missão é simples de explicar e difícil de cumprir: **atire, desvie, abaste�
 
 4. **Stack**
 
+- **Engine**: [Phaser 3](https://phaser.io/) (v3.70.0, via CDN) — física arcade, colisões, grupos e câmera.
+- **Frontend**: HTML/CSS/JS puro, sem framework e sem build step — arquivo único.
+- **Sprites**: gerados via `Graphics API` do próprio Phaser, sem nenhum asset de imagem externo.
+- **Áudio**: Web Audio API, com música e efeitos sonoros sintetizados proceduralmente (sem arquivos de áudio).
+- **Versionamento**: Git/GitHub.
+- **Deploy**: nenhum — é um HTML estático, roda direto no navegador.
+
 5. **Como utilizamos a IA**
+
+O projeto foi "vibe-coded" do início ao fim com a Claude (Opus 4.8, 1M de contexto), da primeira versão jogável até a trilha sonora e os efeitos sonoros procedurais.
+
+- A IA implementou a lógica do jogo (física de movimento, colisões, curva de dificuldade progressiva por distância) a partir de descrições do conceito e ajustes de gameplay.
+- Os sprites e o áudio foram gerados por código (Graphics API e Web Audio API), sem nenhum asset externo, com a IA escrevendo as texturas e os sintetizadores de som.
+- Decisões de design (ex.: balanceamento de thrust/drag, dificuldades, narrativa) foram guiadas em conversa, com a IA propondo e iterando a implementação.
+- A co-autoria da IA é registrada diretamente nos commits (`Co-Authored-By: Claude Opus 4.8`).
