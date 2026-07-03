@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Capininha-1 — Rocket to the Moon</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.70.0/phaser.min.js"></script>
+<style>
+  html, body { margin:0; padding:0; background:#000; height:100%; display:flex; align-items:center; justify-content:center; }
+  #game { box-shadow: 0 0 40px rgba(80,120,255,0.3); }
+  canvas { image-rendering: pixelated; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+<script>
+/* =======================================================
+   CAPININHA-1 — ROCKET TO THE MOON
+   Ano 2049. A Capininha-1 carrega um canhão de mineração
+   adaptado — o bastante para abrir caminho pelos meteoros
+   e neutralizar drones de defesa deixados por missões
+   anteriores. Cada disparo consome energia: atirar também
+   é uma decisão de combustível, não só de sobrevivência.
+   Vibe-coded em Phaser 3, arquivo único, sem assets externos.
+   ======================================================= */
+
+const W = 480, H = 720;
+
+const DIFFICULTIES = {
+  // drag SEMPRE bem menor que thrust — senão o atrito cancela o impulso no mesmo frame e a nave trava
+  facil:   { label:'FÁCIL',   moonDistance:9000,  corridorHalf:170, minHalf:110, maxHalf:200, fuelDrainMul:0.7, spawnMul:0.7, thrust:750, drag:320, maxSpeed:260, gravity:0   },
+  medio:   { label:'MÉDIO',   moonDistance:15000, corridorHalf:150, minHalf:85,  maxHalf:190, fuelDrainMul:1.0, spawnMul:1.0, thrust:700, drag:200, maxSpeed:270, gravity:22  },
+  dificil: { label:'DIFÍCIL', moonDistance:22000, corridorHalf:120, minHalf:60,  maxHalf:170, fuelDrainMul:1.3, spawnMul:1.4, thrust:650, drag:110, maxSpeed:280, gravity:45  }
+};
+
+class MainScene extends Phaser.Scene {
+  constructor() { super('main'); }
+
+  preload() {}
+
+  create() {
+    this.createTextures();
+
+    // ---------- fundo estelar (parallax em 2 camadas) ----------
+    this.starsFar  = this.add.tileSprite(W/2, H/2, W, H, 'starfieldFar');
+    this.starsNear = this.add.tileSprite(W/2, H/2, W, H, 'starfieldNear');
+
+    // ---------- lua ----------
+    this.moonSprite = this.add.image(W/2, 60, 'moon').setVisible(false).setDepth(1);
+
+    // ---------- grupos de física ----------
+    this.wallsGroup         = this.physics.add.group();
+    this.meteorsGroup       = this.physics.add.group();
+    this.droneGroup         = this.physics.add.group();
+    this.fuelCellGroup      = this.physics.add.group();
+    this.playerBulletsGroup = this.physics.add.group();
+    this.droneBulletsGroup  = this.physics.add.group();
+
+    // ---------- nave ----------
+    this.player = this.physics.add.sprite(W/2, 600, 'rocket');
+    this.player.setDepth(5);
+    this.player.setCollideWorldBounds(true);
+    this.vx = 0;
+
+    // ---------- colisões ----------
+    this.physics.add.overlap(this.player, this.wallsGroup, (p,w)=>this.hitWall(p,w));
+    this.physics.add.overlap(this.player, this.meteorsGroup, (p,e)=>this.hitEnemyBody(p,e));
+    this.physics.add.overlap(this.player, this.droneGroup, (p,e)=>this.hitEnemyBody(p,e));
+    this.physics.add.overlap(this.player, this.droneBulletsGroup, (p,b)=>this.hitByDroneBullet(p,b));
+    this.physics.add.overlap(this.player, this.fuelCellGroup, (p,s)=>this.collectFuelCell(p,s));
+    this.physics.add.overlap(this.playerBulletsGroup, this.meteorsGroup, (b,m)=>this.destroyMeteor(b,m));
+    this.physics.add.overlap(this.playerBulletsGroup, this.droneGroup, (b,a)=>this.destroyDrone(b,a));
+
+    // ---------- input ----------
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.key1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
+    this.key2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
+    this.key3 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
+
+    // ---------- HUD ----------
+    this.hudGfx = this.add.graphics().setDepth(10);
+    this.shipLabel = this.add.text(14,700,'CAPININHA-1', {fontFamily:'monospace',fontSize:11,color:'#5577aa'}).setOrigin(0,1).setDepth(10);
+    this.scoreText = this.add.text(W-14,14,'',{fontFamily:'monospace',fontSize:16,color:'#ffffff'}).setOrigin(1,0).setDepth(10);
+    this.livesText = this.add.text(14,40,'',{fontFamily:'monospace',fontSize:16,color:'#ffffff'}).setDepth(10);
+    this.controlsText = this.add.text(W/2,H-14,'← → desliza   ↑ acelera   ↓ reduz empuxo   SPACE atira (gasta combustível)',
+      {fontFamily:'monospace',fontSize:10,color:'#889'}).setOrigin(0.5,1).setDepth(10);
+
+    // ---------- telas de estado ----------
+    const narrativa =
+      'CAPININHA-1\n\n'+
+      '2049. A Terra esgotou seu recurso mais precioso.\n'+
+      'A última reserva conhecida está na Lua. Dezenas\n'+
+      'de missões já tentaram chegar — nenhuma voltou.\n'+
+      'Seus destroços viraram parte do cinturão de\n'+
+      'meteoros, ao lado de drones de defesa automatizados\n'+
+      'que ainda atacam qualquer nave que se aproxime.\n\n'+
+      'A Capininha-1 carrega um canhão de mineração\n'+
+      'adaptado: abre caminho pelos meteoros e neutraliza\n'+
+      'os drones. Não é uma nave de guerra — cada disparo\n'+
+      'consome combustível, o mesmo que decide se você\n'+
+      'chega ou vira mais um destroço.\n\n'+
+      'Sem freio: a nave desliza, a gravidade puxa,\n'+
+      'e a Lua cresce no horizonte.\n\n'+
+      'Desvie. Atire. Abasteça. Chegue.\n\n'+
+      '[1] FÁCIL     [2] MÉDIO     [3] DIFÍCIL';
+
+    this.menuText = this.add.text(W/2,H/2,narrativa,
+      {fontFamily:'monospace',fontSize:12,color:'#ffffff',align:'center',lineSpacing:3})
+      .setOrigin(0.5).setDepth(20);
+
+    this.gameOverText = this.add.text(W/2,H/2,'', {fontFamily:'monospace',fontSize:16,color:'#ff5555',align:'center',lineSpacing:6})
+      .setOrigin(0.5).setDepth(20).setVisible(false);
+
+    this.winText = this.add.text(W/2,H/2,'', {fontFamily:'monospace',fontSize:16,color:'#88ffcc',align:'center',lineSpacing:6})
+      .setOrigin(0.5).setDepth(20).setVisible(false);
+
+    this.state = 'menu';
+    this.player.setVisible(false);
+  }
+
+  // ======================================================
+  // TEXTURAS (sem assets externos)
+  // ======================================================
+  createTextures() {
+    const g = this.add.graphics();
+
+    // Nave — Capininha-1
+    g.clear();
+    g.fillStyle(0xffffff,1); g.fillTriangle(16,0, 2,40, 30,40);
+    g.fillStyle(0x3399ff,1); g.fillTriangle(16,10, 8,30, 24,30);
+    g.fillStyle(0xff5533,1); g.fillTriangle(16,40, 8,52, 24,52);
+    g.generateTexture('rocket',32,52);
+
+    // Meteoro (cinturão + destroços incorporados)
+    g.clear();
+    g.fillStyle(0x8b6f47,1); g.fillCircle(16,16,16);
+    g.fillStyle(0x6b4f2f,1); g.fillCircle(10,10,4); g.fillCircle(21,20,3); g.fillCircle(12,22,2);
+    g.generateTexture('meteor',32,32);
+
+    // Drone de defesa hostil (sistema automatizado de missão anterior)
+    g.clear();
+    g.fillStyle(0x667788,1); g.fillEllipse(16,18,30,14);
+    g.fillStyle(0x445566,1); g.fillEllipse(16,12,14,10);
+    g.fillStyle(0xff3344,1); g.fillCircle(16,12,3); // sensor hostil
+    g.generateTexture('drone',32,32);
+
+    // Bloco de parede (asteroide do cinturão)
+    g.clear();
+    g.fillStyle(0x4a2f4f,1); g.fillRect(0,0,32,32);
+    g.fillStyle(0x5c3a63,1); g.fillCircle(9,9,6); g.fillCircle(23,20,7);
+    g.fillStyle(0x3a2340,1); g.fillRect(0,0,32,3); g.fillRect(0,29,32,3);
+    g.generateTexture('wall',32,32);
+
+    // Célula de combustível abandonada
+    g.clear();
+    g.fillStyle(0x226644,1); g.fillRoundedRect(6,0,20,32,6);
+    g.fillStyle(0x33cc88,1); g.fillRoundedRect(9,4,14,10,4);
+    g.fillStyle(0xaaffdd,1); g.fillRect(13,16,6,10);
+    g.generateTexture('fuelcell',32,32);
+
+    // Balas
+    g.clear(); g.fillStyle(0xffff44,1); g.fillRect(0,0,4,12); g.generateTexture('bulletPlayer',4,12);
+    g.clear(); g.fillStyle(0xff4466,1); g.fillRect(0,0,4,12); g.generateTexture('bulletDrone',4,12);
+
+    // Lua
+    g.clear();
+    g.fillStyle(0xdddddd,1); g.fillCircle(50,50,50);
+    g.fillStyle(0xaaaaaa,1); g.fillCircle(30,30,10); g.fillCircle(68,60,8); g.fillCircle(55,75,6);
+    g.generateTexture('moon',100,100);
+
+    g.destroy();
+
+    this.makeStarfield('starfieldFar', 60, 1, 0x888899);
+    this.makeStarfield('starfieldNear', 35, 2, 0xffffff);
+  }
+
+  makeStarfield(key, count, size, color) {
+    const g = this.add.graphics();
+    g.fillStyle(color,1);
+    for (let i=0;i<count;i++){
+      const x = Phaser.Math.Between(0,W), y = Phaser.Math.Between(0,H);
+      g.fillRect(x,y,size,size);
+    }
+    g.generateTexture(key,W,H);
+    g.destroy();
+  }
+
+  // ======================================================
+  // CONTROLE DE ESTADO
+  // ======================================================
+  startGame(diffKey) {
+    this.diff = DIFFICULTIES[diffKey] || DIFFICULTIES.medio;
+    this.state = 'playing';
+    this.fuel = 100; this.lives = 3; this.score = 0; this.distance = 0;
+    this.scrollSpeed = 150;
+    this.corridorCenter = W/2; this.corridorHalfWidth = this.diff.corridorHalf;
+    this.rowAcc = 0;
+    this.meteorCd = 100/this.diff.spawnMul; this.droneCd = 220/this.diff.spawnMul; this.fuelCd = 260;
+    this.invulnerable = false;
+    this.vx = 0; this.shootCd = 0;
+    this.gravityDir = Phaser.Math.Between(0,1) ? 1 : -1;
+    this.moonDistance = this.diff.moonDistance;
+
+    [this.wallsGroup,this.meteorsGroup,this.droneGroup,this.fuelCellGroup,
+     this.playerBulletsGroup,this.droneBulletsGroup].forEach(gr=>gr.clear(true,true));
+
+    this.player.setPosition(W/2,600).setAlpha(1).setVisible(true).clearTint();
+    this.menuText.setVisible(false);
+    this.gameOverText.setVisible(false);
+    this.winText.setVisible(false);
+    this.moonSprite.setVisible(false).setScale(1).setPosition(W/2,60);
+    this.updateHUD();
+  }
+
+  gameOver(reason) {
+    this.state = 'gameover';
+    this.player.setVisible(false);
+    this.gameOverText.setText(`A MISSÃO SE PERDEU\n${reason}\n\nDistância: ${Math.floor(this.distance)}\nScore: ${Math.floor(this.score)}\n\nMais um destroço no caminho de quem vier depois.\n\n[1] Fácil  [2] Médio  [3] Difícil`).setVisible(true);
+  }
+
+  win() {
+    this.state = 'win';
+    this.player.setVisible(false);
+    this.moonSprite.setVisible(true).setScale(2).setPosition(W/2,H/2-80);
+    this.winText.setText(`A CAPININHA-1 CHEGOU NA LUA\n\nDificuldade: ${this.diff.label}\nScore: ${Math.floor(this.score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`).setVisible(true);
+  }
+
+  // ======================================================
+  // SPAWN
+  // ======================================================
+  spawnRow() {
+    const drift = Phaser.Math.Between(-14,14);
+    this.corridorCenter = Phaser.Math.Clamp(this.corridorCenter+drift, this.corridorHalfWidth+24, W-this.corridorHalfWidth-24);
+    if (Phaser.Math.Between(0,100) < 8) {
+      this.corridorHalfWidth = Phaser.Math.Clamp(this.corridorHalfWidth+Phaser.Math.Between(-20,20), this.diff.minHalf, this.diff.maxHalf);
+    }
+    const leftEdge = this.corridorCenter - this.corridorHalfWidth;
+    const rightEdge = this.corridorCenter + this.corridorHalfWidth;
+
+    for (let x=16; x<leftEdge; x+=32) this.wallsGroup.create(x,-16,'wall');
+    for (let x=rightEdge+16; x<W; x+=32) this.wallsGroup.create(x,-16,'wall');
+
+    this.meteorCd -= 32; this.droneCd -= 32; this.fuelCd -= 32;
+    const gapSize = rightEdge-leftEdge;
+
+    if (this.meteorCd<=0 && gapSize>60) {
+      this.spawnMeteor(Phaser.Math.Between(leftEdge+20,rightEdge-20), -16);
+      this.meteorCd = Phaser.Math.Between(3,7)*32/this.diff.spawnMul;
+    }
+    if (this.droneCd<=0 && gapSize>90) {
+      this.spawnDrone(Phaser.Math.Between(leftEdge+30,rightEdge-30), -16);
+      this.droneCd = Phaser.Math.Between(6,10)*32/this.diff.spawnMul;
+    }
+    if (this.fuelCd<=0) {
+      this.spawnFuelCell(this.corridorCenter, -16);
+      this.fuelCd = Phaser.Math.Between(16,26)*32;
+    }
+  }
+
+  spawnMeteor(x,y) {
+    const m = this.meteorsGroup.create(x,y,'meteor');
+    m.setCircle(16);
+    m.setData('extra', Phaser.Math.Between(40,120));
+    m.setData('spin', Phaser.Math.Between(-3,3));
+  }
+
+  spawnDrone(x,y) {
+    const d = this.droneGroup.create(x,y,'drone');
+    d.setData('baseX', x);
+    d.setData('phase', Phaser.Math.Between(0,1000));
+    d.setData('fireCd', Phaser.Math.Between(900,2200));
+  }
+
+  spawnFuelCell(x,y) {
+    this.fuelCellGroup.create(x,y,'fuelcell');
+  }
+
+  fireDroneBullet(drone) {
+    const b = this.droneBulletsGroup.create(drone.x, drone.y+16, 'bulletDrone');
+    b.body.velocity.y = 260;
+  }
+
+  // ======================================================
+  // COLISÕES
+  // ======================================================
+  damagePlayer() {
+    if (this.invulnerable || this.state!=='playing') return;
+    this.lives--;
+    this.updateHUD();
+    if (this.lives<=0) { this.gameOver('Impacto fatal no cinturão de meteoros.'); return; }
+    this.invulnerable = true;
+    this.player.setTint(0xff4444);
+    this.tweens.add({targets:this.player, alpha:0.3, yoyo:true, repeat:5, duration:120,
+      onComplete:()=>this.player.setAlpha(1)});
+    this.time.delayedCall(1300, ()=>{ this.invulnerable=false; this.player.clearTint(); });
+  }
+
+  hitWall(player,wall) { this.damagePlayer(); }
+  hitEnemyBody(player,enemy) { enemy.destroy(); this.damagePlayer(); }
+  hitByDroneBullet(player,bullet) { bullet.destroy(); this.damagePlayer(); }
+  collectFuelCell(player,cell) { cell.destroy(); this.fuel=Math.min(100,this.fuel+40); this.score+=15; this.updateHUD(); }
+  destroyMeteor(bullet,meteor) { bullet.destroy(); meteor.destroy(); this.score+=10; }
+  destroyDrone(bullet,drone) { bullet.destroy(); drone.destroy(); this.score+=25; }
+
+  // ======================================================
+  // HUD
+  // ======================================================
+  updateHUD() {
+    this.hudGfx.clear();
+    const fw = 140;
+    this.hudGfx.fillStyle(0x222233,1); this.hudGfx.fillRect(14,14,fw,14);
+    const pct = this.fuel/100;
+    const color = pct>0.5 ? 0x33cc66 : (pct>0.2 ? 0xffcc33 : 0xff4444);
+    this.hudGfx.fillStyle(color,1); this.hudGfx.fillRect(14,14,fw*pct,14);
+    this.hudGfx.lineStyle(1,0xffffff,0.6); this.hudGfx.strokeRect(14,14,fw,14);
+
+    const py = 6, pw = W-28;
+    this.hudGfx.fillStyle(0x222233,1); this.hudGfx.fillRect(14,py,pw,4);
+    const prog = Phaser.Math.Clamp((this.distance||0)/(this.moonDistance||15000),0,1);
+    this.hudGfx.fillStyle(0x88bbff,1); this.hudGfx.fillRect(14,py,pw*prog,4);
+
+    this.scoreText.setText('Score: '+Math.floor(this.score));
+    this.livesText.setText('Vidas: '+'♥'.repeat(Math.max(this.lives,0)));
+  }
+
+  // ======================================================
+  // UPDATE
+  // ======================================================
+  update(time, delta) {
+    if (this.state==='menu' || this.state==='gameover' || this.state==='win') {
+      if (Phaser.Input.Keyboard.JustDown(this.key1)) this.startGame('facil');
+      else if (Phaser.Input.Keyboard.JustDown(this.key2)) this.startGame('medio');
+      else if (Phaser.Input.Keyboard.JustDown(this.key3)) this.startGame('dificil');
+      else if (Phaser.Input.Keyboard.JustDown(this.cursors.space)) this.startGame('medio');
+      this.starsFar.tilePositionY -= 10*delta/1000;
+      this.starsNear.tilePositionY -= 20*delta/1000;
+      return;
+    }
+
+    // -------- estado: playing --------
+    const boosting = this.cursors.up.isDown;
+    const braking  = this.cursors.down.isDown; // reduz empuxo — não é freio ativo
+
+    const difficultyT = Phaser.Math.Clamp(this.distance/this.moonDistance,0,1);
+    let target = Phaser.Math.Linear(150, 300, difficultyT);
+    if (boosting) target *= 1.5;
+    if (braking) target *= 0.6;
+    this.scrollSpeed = Phaser.Math.Linear(this.scrollSpeed, target, 0.06);
+
+    let drain = (4 + (boosting?3:0) - (braking?2:0)) * this.diff.fuelDrainMul;
+    drain = Math.max(drain,1);
+    this.fuel -= drain*delta/1000;
+
+    // -------- movimento lateral com inércia (sem freio) --------
+    const dt = delta/1000;
+    if (this.cursors.left.isDown) this.vx -= this.diff.thrust*dt;
+    if (this.cursors.right.isDown) this.vx += this.diff.thrust*dt;
+    this.vx += this.gravityDir*this.diff.gravity*dt;
+    if (this.vx>0) this.vx = Math.max(0, this.vx - this.diff.drag*dt);
+    else if (this.vx<0) this.vx = Math.min(0, this.vx + this.diff.drag*dt);
+    this.vx = Phaser.Math.Clamp(this.vx, -this.diff.maxSpeed, this.diff.maxSpeed);
+    this.player.body.velocity.x = this.vx;
+    if (this.player.body.blocked.left || this.player.body.blocked.right || this.player.body.touching.left || this.player.body.touching.right) {
+      this.vx = 0;
+    }
+
+    // -------- tiro: consome munição de energia, não é de graça --------
+    this.shootCd -= delta;
+    if (this.cursors.space.isDown && this.shootCd<=0 && this.fuel>0.5) {
+      const b = this.playerBulletsGroup.create(this.player.x, this.player.y-24, 'bulletPlayer');
+      b.body.velocity.y = -420;
+      this.shootCd = 220;
+      this.fuel -= 0.8;
+    }
+
+    if (this.fuel<=0) { this.fuel=0; this.updateHUD(); this.gameOver('Sem combustível — à deriva no vácuo.'); return; }
+
+    this.distance += this.scrollSpeed*dt;
+    this.score += this.scrollSpeed*dt/8;
+
+    this.starsFar.tilePositionY  -= this.scrollSpeed*0.3*dt;
+    this.starsNear.tilePositionY -= this.scrollSpeed*0.6*dt;
+
+    this.rowAcc += this.scrollSpeed*dt;
+    let guard = 0;
+    while (this.rowAcc>=32 && guard<10) { this.spawnRow(); this.rowAcc-=32; guard++; }
+
+    if (difficultyT>0.75) {
+      const p = Phaser.Math.Clamp((difficultyT-0.75)/0.25,0,1);
+      this.moonSprite.setVisible(true).setScale(0.3+p*1.2).setPosition(W/2, 60+p*40);
+    }
+
+    this.wallsGroup.children.iterate(c=>{
+      if (!c) return;
+      c.body.velocity.y = this.scrollSpeed;
+      if (c.y>H+20) c.destroy();
+    });
+    this.fuelCellGroup.children.iterate(c=>{
+      if (!c) return;
+      c.body.velocity.y = this.scrollSpeed;
+      if (c.y>H+20) c.destroy();
+    });
+    this.meteorsGroup.children.iterate(c=>{
+      if (!c) return;
+      c.body.velocity.y = this.scrollSpeed + c.getData('extra');
+      c.angle += c.getData('spin');
+      if (c.y>H+20) c.destroy();
+    });
+    this.droneGroup.children.iterate(c=>{
+      if (!c) return;
+      c.setX(c.getData('baseX') + Math.sin((time+c.getData('phase'))/300)*30);
+      c.body.updateFromGameObject();
+      c.body.velocity.y = this.scrollSpeed*0.6+30;
+      let cd = c.getData('fireCd') - delta;
+      if (cd<=0) { this.fireDroneBullet(c); cd = Phaser.Math.Between(1500,3000); }
+      c.setData('fireCd', cd);
+      if (c.y>H+20) c.destroy();
+    });
+    this.playerBulletsGroup.children.iterate(c=>{ if (c && c.y<-20) c.destroy(); });
+    this.droneBulletsGroup.children.iterate(c=>{ if (c && c.y>H+20) c.destroy(); });
+
+    if (this.distance>=this.moonDistance) { this.win(); return; }
+
+    this.updateHUD();
+  }
+}
+
+const config = {
+  type: Phaser.AUTO,
+  width: W,
+  height: H,
+  parent: 'game',
+  backgroundColor: '#050510',
+  physics: { default: 'arcade', arcade: { gravity:{y:0}, debug:false } },
+  scene: MainScene
+};
+
+new Phaser.Game(config);
+</script>
+</body>
+</html>
