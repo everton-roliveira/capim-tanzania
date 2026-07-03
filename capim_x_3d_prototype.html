@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>Capim-x 3D — Rocket to the Moon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Exo+2:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
   html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#03030a; font-family:monospace; }
@@ -40,41 +43,200 @@
   #winOverlay .panel      { color:#88ffcc; }
 
   #introOverlay { overflow:hidden; }
-  .crawl-viewport {
-    position:absolute; inset:0; overflow:hidden;
-    perspective:350px; perspective-origin:50% 100%;
+  /* fundo espacial PERSISTENTE (mesmo na intro e no menu): nebulosa + estrelas + lua + Terra.
+     z-index 1 = acima do canvas 3D, abaixo dos overlays (10) e do HUD (4). */
+  .space-scene {
+    position:fixed; inset:0; z-index:1; overflow:hidden; pointer-events:none;
+    background:
+      radial-gradient(ellipse at 72% 22%, rgba(70,100,180,0.20), transparent 55%),
+      radial-gradient(ellipse at 18% 82%, rgba(130,60,150,0.16), transparent 52%),
+      radial-gradient(ellipse at 50% 50%, #060814 0%, #02030a 70%, #010109 100%);
   }
+  .star {
+    position:absolute; border-radius:50%; background:#fff;
+    animation:twinkle var(--dur,3s) ease-in-out var(--delay,0s) infinite;
+  }
+  @keyframes twinkle {
+    0%,100% { opacity:0.15; transform:scale(0.7); }
+    50%     { opacity:1;    transform:scale(1.1); }
+  }
+  .moon {
+    position:absolute; top:7%; right:8%;
+    width:86px; height:86px; border-radius:50%;
+    background:radial-gradient(circle at 38% 34%, #fdfdf5 0%, #d9dce6 42%, #9aa0b4 78%, #6d7286 100%);
+    box-shadow:
+      0 0 34px 6px rgba(200,215,255,0.30),
+      inset -10px -7px 18px rgba(0,0,0,0.35);
+  }
+  /* crateras sutis */
+  .moon::before, .moon::after {
+    content:''; position:absolute; border-radius:50%;
+    background:rgba(90,95,115,0.35); box-shadow:inset 1px 1px 3px rgba(0,0,0,0.3);
+  }
+  .moon::before { width:15px; height:15px; top:30%; left:26%; }
+  .moon::after  { width:9px; height:9px; top:58%; left:56%;
+    box-shadow:inset 1px 1px 3px rgba(0,0,0,0.3), -20px -8px 0 -2px rgba(90,95,115,0.3); }
+  /* a Terra, pequena e azul, no canto inferior esquerdo */
+  .earth {
+    position:absolute; bottom:9%; left:7%;
+    width:58px; height:58px; border-radius:50%;
+    background:
+      radial-gradient(circle at 32% 28%, rgba(255,255,255,0.35) 0%, transparent 22%),
+      radial-gradient(circle at 62% 66%, #2f7d3a 0%, transparent 30%),
+      radial-gradient(circle at 30% 62%, #2f7d3a 0%, transparent 26%),
+      radial-gradient(circle at 50% 45%, #2f6fd6 0%, #1a4fa0 70%, #0d2f6b 100%);
+    box-shadow:
+      0 0 26px 5px rgba(80,140,255,0.35),
+      inset -8px -6px 16px rgba(0,0,0,0.45);
+  }
+  .crawl-viewport {
+    position:absolute; inset:0; overflow:hidden; z-index:2;
+  }
+  /* leve fade no topo e na base para o texto aparecer/sumir suave */
   .crawl-viewport::after {
-    content:''; position:absolute; inset:0; pointer-events:none;
-    background:linear-gradient(to bottom, #03030a 0%, transparent 22%, transparent 100%);
+    content:''; position:absolute; inset:0; pointer-events:none; z-index:3;
+    background:linear-gradient(to bottom,
+      rgba(2,3,10,0.55) 0%, transparent 24%, transparent 78%, rgba(2,3,10,0.92) 100%);
   }
   .crawl-text {
     position:absolute; top:100%; left:50%;
-    width:620px; max-width:78%;
-    transform:translateX(-50%) rotateX(35deg);
-    transform-origin:50% 100%;
-    color:#eaf2ff; text-align:center; white-space:pre-line;
-    font-size:22px; line-height:2;
-    animation:crawl 38s linear forwards;
+    width:680px; max-width:82%;
+    transform:translateX(-50%);
+    color:#ffe81f; font-weight:600; text-align:center; white-space:pre-line;
+    font-family:'Exo 2', sans-serif; text-transform:uppercase;
+    font-size:24px; line-height:1.9; letter-spacing:0.5px;
+    text-shadow:0 0 14px rgba(255,232,31,0.35);
+    animation:crawl 40s linear forwards;
+    animation-play-state:paused;   /* só corre após o 1º gesto (permite áudio) */
   }
   @keyframes crawl {
     0%   { top:100%; }
-    100% { top:-760%; }
+    100% { top:-180%; }
+  }
+  /* título CAPIM-X no crawl — grande e imponente */
+  .crawl-title {
+    display:inline-block;
+    font-family:'Orbitron', sans-serif; font-weight:900;
+    font-size:64px; letter-spacing:10px; line-height:1.1;
+    color:#fff; text-shadow:0 0 26px rgba(136,187,255,0.55), 0 0 8px rgba(255,255,255,0.4);
+  }
+  /* palavras finais — discretas, sem exagero de brilho */
+  .crawl-final {
+    display:inline-block; margin-top:10px;
+    font-family:'Orbitron', sans-serif; font-weight:700;
+    font-size:26px; letter-spacing:3px; line-height:1.5; text-transform:uppercase;
+    color:#ffe81f; text-shadow:0 0 8px rgba(255,232,31,0.4);
   }
   .skip-hint {
     position:absolute; left:0; right:0; bottom:18px; text-align:center;
     color:#889; font-size:11px; letter-spacing:0.5px;
   }
-  .title-logo { font-size:44px; letter-spacing:6px; color:#fff; margin-bottom:10px; }
-  .title-tagline { font-size:13px; color:#9fd6c8; margin-bottom:30px; letter-spacing:1px; }
-  .title-prompt { font-size:14px; color:#fff; animation:blink 1.4s steps(1) infinite; }
+  .intro-start {
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:4;
+    text-align:center; white-space:nowrap;
+    font-family:'Orbitron', sans-serif; font-weight:500;
+    color:#cfe3ff; font-size:15px; letter-spacing:3px;
+    text-shadow:0 0 16px rgba(136,187,255,0.6);
+    animation:blink 1.6s steps(1) infinite;
+  }
+  .title-logo {
+    font-family:'Orbitron', sans-serif; font-weight:900;
+    font-size:52px; letter-spacing:8px; color:#fff; margin-bottom:14px;
+    text-shadow:0 0 24px rgba(136,187,255,0.6), 0 0 6px rgba(255,255,255,0.5);
+  }
+  .title-tagline {
+    font-family:'Orbitron', sans-serif; font-weight:500;
+    font-size:14px; color:#9fd6c8; margin-bottom:30px; letter-spacing:4px; text-transform:uppercase;
+  }
   @keyframes blink { 50% { opacity:0.25; } }
-  .select-title { font-size:15px; color:#fff; margin-bottom:18px; letter-spacing:1px; }
-  .select-option { font-size:13px; color:#cfe; margin:6px 0; }
+
+  /* ---------- menu temático (título + seleção) ---------- */
+  .menu {
+    pointer-events:auto;
+    display:flex; flex-direction:column; align-items:center;
+    padding:34px 40px 28px; min-width:340px;
+    background:linear-gradient(160deg, rgba(16,22,44,0.72), rgba(6,9,22,0.82));
+    border:1px solid rgba(120,170,255,0.28); border-radius:16px;
+    box-shadow:0 0 60px rgba(60,110,220,0.18), inset 0 0 40px rgba(30,60,140,0.12);
+    backdrop-filter:blur(3px);
+  }
+  .select-title {
+    font-family:'Orbitron', sans-serif; font-weight:700;
+    font-size:15px; color:#cfe3ff; margin-bottom:20px; letter-spacing:3px; text-transform:uppercase;
+  }
+  .menu-hint {
+    margin-top:16px; font-size:11px; color:#7f93b8; letter-spacing:2px; text-transform:uppercase;
+    animation:blink 1.8s steps(1) infinite;
+  }
+
+  /* base dos botões */
+  .btn {
+    pointer-events:auto; cursor:pointer; user-select:none;
+    font-family:'Orbitron', sans-serif; font-weight:700;
+    color:#eaf2ff; background:linear-gradient(160deg, rgba(40,60,120,0.55), rgba(20,30,70,0.55));
+    border:1px solid rgba(130,180,255,0.35); border-radius:10px;
+    letter-spacing:2px; text-transform:uppercase;
+    transition:transform .12s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+    outline:none;
+  }
+  .btn:hover {
+    transform:translateY(-2px);
+    border-color:rgba(150,200,255,0.8);
+    box-shadow:0 0 26px rgba(90,150,255,0.45);
+    background:linear-gradient(160deg, rgba(55,80,160,0.7), rgba(28,42,95,0.7));
+  }
+  .btn:active { transform:translateY(0) scale(0.98); }
+
+  /* botão principal NOVO JOGO */
+  .btn-primary {
+    display:flex; align-items:center; gap:12px;
+    margin-top:8px; padding:16px 34px; font-size:19px;
+    background:linear-gradient(160deg, rgba(60,120,255,0.30), rgba(20,40,110,0.45));
+    border-color:rgba(150,200,255,0.55);
+    box-shadow:0 0 30px rgba(80,140,255,0.30);
+  }
+  .btn-primary:hover { box-shadow:0 0 40px rgba(110,170,255,0.65); }
+  .btn-icon { font-size:22px; filter:drop-shadow(0 0 6px rgba(160,200,255,0.8)); }
+
+  /* botões de dificuldade */
+  .diff-btn {
+    display:flex; align-items:center; gap:16px; text-align:left;
+    width:340px; margin:7px 0; padding:14px 18px;
+    border-left-width:4px;
+  }
+  .diff-key {
+    flex:0 0 auto; width:34px; height:34px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px; font-weight:900;
+    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.25);
+  }
+  .diff-body { display:flex; flex-direction:column; gap:3px; }
+  .diff-name { font-size:17px; letter-spacing:2px; }
+  .diff-desc {
+    font-family:'Exo 2', sans-serif; font-weight:400; text-transform:none;
+    font-size:11px; letter-spacing:0.3px; color:#a9bede;
+  }
+  /* cores por nível */
+  .diff-facil   { border-left-color:#33cc66; }
+  .diff-facil   .diff-key { color:#8dffb4; border-color:rgba(51,204,102,0.6); }
+  .diff-facil:hover   { box-shadow:0 0 26px rgba(51,204,102,0.4); border-color:rgba(51,204,102,0.8); }
+  .diff-medio   { border-left-color:#ffcc33; }
+  .diff-medio   .diff-key { color:#ffe08a; border-color:rgba(255,204,51,0.6); }
+  .diff-medio:hover   { box-shadow:0 0 26px rgba(255,204,51,0.4); border-color:rgba(255,204,51,0.8); }
+  .diff-dificil { border-left-color:#ff5555; }
+  .diff-dificil .diff-key { color:#ff9a9a; border-color:rgba(255,85,85,0.6); }
+  .diff-dificil:hover { box-shadow:0 0 26px rgba(255,85,85,0.4); border-color:rgba(255,85,85,0.8); }
+
+  /* voltar */
+  .btn-back {
+    margin-top:14px; padding:9px 20px; font-size:12px; font-weight:500;
+    color:#9fb2d6; background:transparent; border-color:rgba(120,150,200,0.3);
+  }
 </style>
 </head>
 <body>
 <div id="flash"></div>
+<div class="space-scene" id="spaceScene"><div class="earth"></div><div class="moon"></div></div>
 <div id="hud">
   <div id="fuelBarBg"><div id="fuelBarFill"></div></div>
   <div id="progressBarBg"><div id="progressBarFill"></div></div>
@@ -86,21 +248,36 @@
 </div>
 <div id="introOverlay" class="overlay" style="display:block">
   <div class="crawl-viewport"><div class="crawl-text" id="crawlText"></div></div>
-  <div class="skip-hint">pressione qualquer tecla ou clique para pular</div>
+  <div class="intro-start" id="introStart">▶ CLIQUE OU PRESSIONE QUALQUER TECLA PARA INICIAR</div>
+  <div class="skip-hint" id="skipHint" style="display:none">pressione qualquer tecla ou clique para pular</div>
 </div>
 <div id="titleOverlay" class="overlay center-panel" style="display:none">
-  <div class="panel">
+  <div class="menu">
     <div class="title-logo">CAPIM-X</div>
     <div class="title-tagline">ROCKET TO THE MOON</div>
-    <div class="title-prompt">[ENTER] ou clique — NOVO JOGO</div>
+    <button class="btn btn-primary" id="btnNewGame">
+      <span class="btn-icon">🚀</span><span>NOVO JOGO</span>
+    </button>
+    <div class="menu-hint">ENTER ou clique</div>
   </div>
 </div>
 <div id="selectOverlay" class="overlay center-panel" style="display:none">
-  <div class="panel">
+  <div class="menu">
     <div class="select-title">ESCOLHA A DIFICULDADE</div>
-    <div class="select-option">[1] FÁCIL — corredor largo, sem gravidade lateral</div>
-    <div class="select-option">[2] MÉDIO — gravidade lateral moderada</div>
-    <div class="select-option">[3] DIFÍCIL — corredor estreito, gravidade lateral forte</div>
+    <button class="btn diff-btn diff-facil" data-diff="facil">
+      <span class="diff-key">1</span>
+      <span class="diff-body"><span class="diff-name">FÁCIL</span><span class="diff-desc">Corredor largo · sem gravidade lateral</span></span>
+    </button>
+    <button class="btn diff-btn diff-medio" data-diff="medio">
+      <span class="diff-key">2</span>
+      <span class="diff-body"><span class="diff-name">MÉDIO</span><span class="diff-desc">Gravidade lateral moderada</span></span>
+    </button>
+    <button class="btn diff-btn diff-dificil" data-diff="dificil">
+      <span class="diff-key">3</span>
+      <span class="diff-body"><span class="diff-name">DIFÍCIL</span><span class="diff-desc">Corredor estreito · gravidade forte</span></span>
+    </button>
+    <button class="btn btn-back" id="btnBack">‹ VOLTAR</button>
+    <div class="menu-hint">1 / 2 / 3 ou clique</div>
   </div>
 </div>
 <div id="gameOverOverlay" class="overlay center-panel" style="display:none"><div class="panel" id="gameOverPanel"></div></div>
@@ -692,8 +869,7 @@ function clearAllEntities() {
   segments.splice(0).forEach(removeBeltSegment);
 }
 
-// preview inicial do corredor (atrás do menu)
-for (let i=0;i<20;i++) { buildBeltSegment(nextSegmentZ); nextSegmentZ -= CORRIDOR.segmentLength; }
+// nada de cinturão de asteroides atrás do menu — mesmo fundo limpo (só estrelas) do jogo 2D
 
 // ---------- dano / vida ----------
 const flashEl = document.getElementById('flash');
@@ -795,6 +971,7 @@ const progressBarFill = document.getElementById('progressBarFill');
 const scoreText = document.getElementById('scoreText');
 const livesText = document.getElementById('livesText');
 const introOverlay = document.getElementById('introOverlay');
+const spaceScene = document.getElementById('spaceScene');
 const crawlText = document.getElementById('crawlText');
 const titleOverlay = document.getElementById('titleOverlay');
 const selectOverlay = document.getElementById('selectOverlay');
@@ -832,9 +1009,10 @@ function updateHUD() {
 }
 
 // ---------- narrativa (idêntica ao jogo 2D) ----------
-crawlText.textContent =
-  'CAPIM-X\n\n'+
-  '2049. A Terra esgotou seu recurso mais precioso.\n'+
+crawlText.innerHTML =
+  '<span class="crawl-title">CAPIM-X</span>\n\n\n'+
+  '2049.\n\n\n'+
+  'A Terra esgotou seu recurso mais precioso.\n'+
   'A última reserva conhecida está na Lua. Dezenas\n'+
   'de missões já tentaram chegar — nenhuma voltou.\n\n'+
   'Seus destroços viraram parte do cinturão de\n'+
@@ -847,7 +1025,28 @@ crawlText.textContent =
   'chega ou vira mais um destroço.\n\n'+
   'Sem freio: a nave desliza, a gravidade puxa,\n'+
   'e a Lua cresce no horizonte.\n\n'+
-  'Desvie. Atire. Abasteça. Chegue.';
+  '<span class="crawl-final">Desvie.<br>Atire.<br>Abasteça.<br>Chegue.</span>';
+
+// ---------- campo de estrelas do overlay de introdução ----------
+(function buildStarfield() {
+  const bg = document.getElementById('spaceScene');
+  if (!bg) return;
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < 160; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 2 + 0.6;
+    s.style.width = size + 'px';
+    s.style.height = size + 'px';
+    s.style.left = (Math.random() * 100) + '%';
+    s.style.top = (Math.random() * 100) + '%';
+    s.style.setProperty('--dur', (2 + Math.random() * 4).toFixed(2) + 's');
+    s.style.setProperty('--delay', (Math.random() * 4).toFixed(2) + 's');
+    if (Math.random() < 0.15) s.style.background = '#bcd2ff';   // algumas estrelas azuladas
+    frag.appendChild(s);
+  }
+  bg.appendChild(frag);
+})();
 
 // ---------- controle de estado ----------
 function startGame(diffKey) {
@@ -879,6 +1078,7 @@ function startGame(diffKey) {
   selectOverlay.style.display = 'none';
   gameOverOverlay.style.display = 'none';
   winOverlay.style.display = 'none';
+  spaceScene.style.display = 'none';   // no jogo, a cena 3D aparece no lugar
   updateHUD();
   AudioSys.startTrack(AudioSys.gameTrack);
 }
@@ -895,6 +1095,13 @@ function goToSelect() {
   state = 'select';
   titleOverlay.style.display = 'none';
   selectOverlay.style.display = 'flex';
+}
+
+function goBack() {
+  if (state !== 'select') return;
+  state = 'title';
+  selectOverlay.style.display = 'none';
+  titleOverlay.style.display = 'flex';
 }
 
 function triggerGameOver(reason) {
@@ -927,11 +1134,27 @@ function armAudio() {
   AudioSys.init();
   RadioChatter.init();
   if (AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
-  if (state === 'intro' && !AudioSys.introPlayed && !AudioSys.track) {
+  if ((state === 'title' || state === 'select') && !AudioSys.track && !AudioSys.introTimer) {
+    AudioSys.startTrack(AudioSys.menuTrack);
+  }
+}
+
+// primeiro gesto na intro: inicia a música E o texto rolando juntos
+let introStarted = false;
+function beginIntro() {
+  if (introStarted) return;
+  introStarted = true;
+  const startEl = document.getElementById('introStart');
+  const skipEl = document.getElementById('skipHint');
+  if (startEl) startEl.style.display = 'none';
+  if (skipEl)  skipEl.style.display = 'block';
+  crawlText.style.animationPlayState = 'running';
+  AudioSys.init();
+  RadioChatter.init();
+  if (AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
+  if (!AudioSys.introPlayed && !AudioSys.track) {
     AudioSys.introPlayed = true;
     AudioSys.playIntro();
-  } else if ((state === 'title' || state === 'select') && !AudioSys.track && !AudioSys.introTimer) {
-    AudioSys.startTrack(AudioSys.menuTrack);
   }
 }
 
@@ -943,8 +1166,9 @@ addEventListener('keydown', e => {
   armAudio();
   if (e.code === 'KeyM') { AudioSys.toggleMute(); if (AudioSys.muted) RadioChatter.stop(); }
 
-  if (state === 'intro') { goToTitle(); return; }
+  if (state === 'intro') { if (!introStarted) beginIntro(); else goToTitle(); return; }
   if (state === 'title') { if (e.code==='Enter' || e.code==='Space') goToSelect(); return; }
+  if (state === 'select' && e.code === 'Escape') { goBack(); return; }
   if (state==='select' || state==='gameover' || state==='win') {
     if (e.code==='Digit1') startGame('facil');
     else if (e.code==='Digit2') startGame('medio');
@@ -955,8 +1179,18 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('pointerdown', e => {
   armAudio();
-  if (state === 'intro') goToTitle();
-  else if (state === 'title') goToSelect();
+  if (state === 'intro') { if (!introStarted) beginIntro(); else goToTitle(); }
+});
+
+// ---------- botões do menu ----------
+function uiBlip(freq) {
+  if (!AudioSys.ctx || !AudioSys.sfxGain) return;
+  AudioSys.blip(AudioSys.ctx.currentTime, freq, 0.09, 'triangle', AudioSys.sfxGain, 0.14, freq*1.5);
+}
+document.getElementById('btnNewGame').addEventListener('click', () => { armAudio(); uiBlip(720); goToSelect(); });
+document.getElementById('btnBack').addEventListener('click', () => { armAudio(); uiBlip(420); goBack(); });
+document.querySelectorAll('.diff-btn').forEach(b => {
+  b.addEventListener('click', () => { armAudio(); uiBlip(900); startGame(b.dataset.diff); });
 });
 
 // ---------- câmera em terceira pessoa ----------
