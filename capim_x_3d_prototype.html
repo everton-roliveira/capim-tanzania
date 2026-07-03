@@ -22,6 +22,13 @@
   #fuelBarFill { position:absolute; left:0; top:0; height:100%; width:100%; background:#33cc66; }
   #progressBarBg  { position:absolute; left:14px; right:14px; top:6px; height:4px; background:#222233; }
   #progressBarFill{ position:absolute; left:0; top:0; height:100%; width:0%; background:#88bbff; }
+  .stage-tick { position:absolute; top:-2px; width:2px; height:8px; background:#9fd6c8; }
+  #stageMsg {
+    position:absolute; left:50%; top:22%; transform:translateX(-50%);
+    font-size:15px; color:#9fd6c8; letter-spacing:3px; white-space:nowrap;
+    text-shadow:0 0 10px rgba(80,255,200,0.5); opacity:0; transition:opacity 0.45s;
+    will-change:opacity; /* promove a camada já no load — evita hitch de compositor na 1ª separação */
+  }
 
   .overlay { position:fixed; inset:0; z-index:10; pointer-events:none; }
   .overlay.center-panel { display:flex; align-items:center; justify-content:center; }
@@ -74,6 +81,7 @@
   <div id="scoreText"></div>
   <div id="livesText"></div>
   <div id="shipLabel">CAPIM-X</div>
+  <div id="stageMsg"></div>
   <div id="controlsText">← → desliza   ↑ acelera   ↓ reduz empuxo   SPACE atira   M muta</div>
 </div>
 <div id="introOverlay" class="overlay" style="display:block">
@@ -189,11 +197,15 @@ const AudioSys = {
 
   noise(time, dur, peak, filterFreq) {
     if (!this.ctx) return;
-    const n = Math.floor(this.ctx.sampleRate*dur);
-    const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i=0;i<n;i++) data[i] = Math.random()*2-1;
-    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    // buffer de ruído gerado uma única vez e reaproveitado: preencher um
+    // novo a cada disparo causava micro-engasgos no frame do efeito
+    if (!this.noiseBuf) {
+      const n = this.ctx.sampleRate; // 1s de ruído, o suficiente para qualquer SFX
+      this.noiseBuf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+      const data = this.noiseBuf.getChannelData(0);
+      for (let i=0;i<n;i++) data[i] = Math.random()*2-1;
+    }
+    const src = this.ctx.createBufferSource(); src.buffer = this.noiseBuf;
     const filt = this.ctx.createBiquadFilter(); filt.type='lowpass';
     filt.frequency.setValueAtTime(filterFreq, time);
     filt.frequency.exponentialRampToValueAtTime(Math.max(80, filterFreq*0.2), time+dur);
@@ -276,6 +288,9 @@ const AudioSys = {
   pickup()  { if (!this.ctx) return; const t=this.ctx.currentTime;
               this.blip(t, this.mtof(72), 0.10, 'triangle', this.sfxGain, 0.22);
               this.blip(t+0.09, this.mtof(79), 0.14, 'triangle', this.sfxGain, 0.22); },
+  separation(){ if (!this.ctx) return; const t=this.ctx.currentTime;
+              this.noise(t, 0.22, 0.25, 500);                                  // clank pneumático dos parafusos explosivos
+              this.blip(t+0.05, 220, 0.32, 'square', this.sfxGain, 0.12, 90); },
   gameOver(){ if (!this.ctx) return; this.stopMusic(); const t=this.ctx.currentTime;
               [57,53,50,45].forEach((m,i)=> this.blip(t+i*0.22, this.mtof(m), 0.42, 'sawtooth', this.sfxGain, 0.24));
               this.blip(t+0.9, this.mtof(33), 1.3, 'sine', this.sfxGain, 0.30); },
@@ -332,41 +347,177 @@ scene.add(moon);
   scene.add(new THREE.Points(geo, mat));
 })();
 
-// ---------- nave ----------
+// ---------- nave (foguete multi-estágio) ----------
+// A Capim-X agora é um foguete de verdade: módulo de comando na ponta,
+// 2º estágio, 1º estágio com aletas e dois boosters laterais. Conforme
+// avança rumo à Lua, cada estágio esgotado se separa e vira destroço
+// tombando para trás — e a nave, mais leve, responde melhor.
 const ship = new THREE.Group();
-
-const hull = new THREE.Mesh(
-  new THREE.ConeGeometry(0.45, 1.6, 6),
-  new THREE.MeshStandardMaterial({ color:0xffffff, flatShading:true })
-);
-hull.rotation.x = -Math.PI/2; // ponta apontando para -Z (frente)
-ship.add(hull);
-
-const cockpit = new THREE.Mesh(
-  new THREE.SphereGeometry(0.24, 8, 8),
-  new THREE.MeshStandardMaterial({ color:0x3399ff, flatShading:true })
-);
-cockpit.position.set(0, 0.1, -0.2);
-ship.add(cockpit);
-
-const engine = new THREE.Mesh(
-  new THREE.ConeGeometry(0.28, 0.6, 6),
-  new THREE.MeshStandardMaterial({ color:0xff5533, emissive:0xff2200, emissiveIntensity:0.6, flatShading:true })
-);
-engine.rotation.x = Math.PI/2;
-engine.position.set(0, 0, 0.9);
-ship.add(engine);
-
 ship.visible = false;
 scene.add(ship);
 
+const hullMat   = new THREE.MeshStandardMaterial({ color:0xa6cd15, flatShading:true, roughness:0.6 });   // verde Capim
+const accentMat = new THREE.MeshStandardMaterial({ color:0x59399e, flatShading:true, roughness:0.8 });   // detalhes roxos
+const tankMat   = new THREE.MeshStandardMaterial({ color:0xa6cd15, flatShading:true, roughness:0.9 });
+const nozzleMat = new THREE.MeshStandardMaterial({ color:0x444a55, flatShading:true, metalness:0.6, roughness:0.4 });
+const windowMat = new THREE.MeshStandardMaterial({ color:0x3399ff, emissive:0x113355, emissiveIntensity:0.6 });
+const boosterTipMat = new THREE.MeshStandardMaterial({ color:0x59399e, flatShading:true, roughness:0.7 });
+const flameMat  = new THREE.MeshBasicMaterial({ color:0xffaa33, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false });
+
+// cilindro com o eixo ao longo de Z (rBack = raio traseiro, rFront = dianteiro)
+function zCyl(rBack, rFront, len, mat, seg=10) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rBack, rFront, len, seg), mat);
+  m.rotation.x = Math.PI/2;
+  return m;
+}
+// cone com a ponta para a frente (-Z)
+function noseCone(r, len, mat) {
+  const m = new THREE.Mesh(new THREE.ConeGeometry(r, len, 10), mat);
+  m.rotation.x = -Math.PI/2;
+  return m;
+}
+// bocal de motor apontando para trás (+Z)
+function nozzle(r, len, mat) {
+  const m = new THREE.Mesh(new THREE.ConeGeometry(r, len, 8), mat);
+  m.rotation.x = Math.PI/2;
+  return m;
+}
+
+const shipParts = { boosters:[], stage1:null, stage2:null, flame:null };
+let massMul = 1;          // <1 depois das separações: nave mais leve e ágil
+const debris = [];        // estágios ejetados tombando pelo espaço
+
+function buildShip() {
+  while (ship.children.length) ship.remove(ship.children[0]);
+  shipParts.boosters = [];
+
+  // --- módulo de comando (nunca se separa) ---
+  const nose = noseCone(0.2, 0.55, hullMat); nose.position.z = -0.95;
+  const crew = zCyl(0.24, 0.2, 0.75, hullMat); crew.position.z = -0.3;
+  const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), windowMat);
+  cockpit.position.set(0, 0.17, -0.42);
+  const coreNozzle = nozzle(0.14, 0.28, nozzleMat); coreNozzle.position.z = 0.18;
+  ship.add(nose, crew, cockpit, coreNozzle);
+
+  // --- 2º estágio ---
+  const stage2 = new THREE.Group();
+  const s2body = zCyl(0.26, 0.26, 0.6, hullMat);
+  const s2ring = zCyl(0.27, 0.27, 0.08, accentMat); s2ring.position.z = -0.28;
+  const s2nozzle = nozzle(0.18, 0.3, nozzleMat); s2nozzle.position.z = 0.42;
+  stage2.add(s2body, s2ring, s2nozzle);
+  stage2.position.z = 0.45;
+  ship.add(stage2);
+  shipParts.stage2 = stage2;
+
+  // --- 1º estágio (tanque laranja + aletas + motor principal) ---
+  const stage1 = new THREE.Group();
+  const s1body = zCyl(0.3, 0.28, 0.8, tankMat);
+  const s1ring = zCyl(0.31, 0.31, 0.08, accentMat); s1ring.position.z = -0.36;
+  const s1nozzle = nozzle(0.22, 0.35, nozzleMat); s1nozzle.position.z = 0.52;
+  stage1.add(s1body, s1ring, s1nozzle);
+  // aletas na diagonal (para não colidir visualmente com os boosters)
+  [Math.PI/4, 3*Math.PI/4, 5*Math.PI/4, 7*Math.PI/4].forEach(a => {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.04, 0.5), accentMat);
+    fin.position.set(Math.cos(a)*0.42, Math.sin(a)*0.42, 0.25);
+    fin.rotation.z = a;
+    stage1.add(fin);
+  });
+  stage1.position.z = 1.2;
+  ship.add(stage1);
+  shipParts.stage1 = stage1;
+
+  // --- boosters laterais ---
+  [-1, 1].forEach(side => {
+    const booster = new THREE.Group();
+    const body = zCyl(0.11, 0.11, 0.9, hullMat);
+    const tip = noseCone(0.11, 0.25, boosterTipMat); tip.position.z = -0.55;
+    const bNozzle = nozzle(0.09, 0.16, nozzleMat); bNozzle.position.z = 0.52;
+    booster.add(body, tip, bNozzle);
+    booster.position.set(side*0.44, 0, 1.15);
+    ship.add(booster);
+    shipParts.boosters.push(booster);
+  });
+
+  // --- chama do motor (base presa ao bocal ativo, ponta para trás) ---
+  const flameGeo = new THREE.ConeGeometry(0.17, 0.8, 8);
+  flameGeo.translate(0, 0.4, 0); // base na origem: esticar não desloca o bocal
+  const flame = new THREE.Mesh(flameGeo, flameMat);
+  flame.rotation.x = Math.PI/2;
+  ship.add(flame);
+  shipParts.flame = flame;
+  moveFlame();
+}
+
+// reposiciona a chama no bocal do estágio ativo mais traseiro
+function moveFlame() {
+  if (!shipParts.flame) return;
+  if (shipParts.stage1)      shipParts.flame.position.z = 1.85;
+  else if (shipParts.stage2) shipParts.flame.position.z = 1.0;
+  else                       shipParts.flame.position.z = 0.34;
+}
+
+buildShip();
+
+// ---------- separação de estágios ----------
+const STAGE_SEPARATIONS = [
+  { at:0.25, key:'boosters', label:'BOOSTERS SEPARADOS' },
+  { at:0.55, key:'stage1',   label:'1º ESTÁGIO SEPARADO' },
+  { at:0.80, key:'stage2',   label:'2º ESTÁGIO SEPARADO' },
+];
+let nextSeparation = 0;
+
+// solta uma peça da nave preservando posição/orientação no mundo
+function detachPart(obj, sideDir) {
+  const pos = new THREE.Vector3(), quat = new THREE.Quaternion();
+  obj.getWorldPosition(pos); obj.getWorldQuaternion(quat);
+  ship.remove(obj);
+  obj.position.copy(pos); obj.quaternion.copy(quat);
+  scene.add(obj);
+  debris.push({
+    mesh: obj,
+    // quase acompanha a nave no início (a separação fica visível na tela)
+    // e vai perdendo velocidade até sumir para trás
+    vel: new THREE.Vector3(
+      sideDir !== 0 ? sideDir*THREE.MathUtils.randFloat(1.8, 2.6) : THREE.MathUtils.randFloat(-0.7, 0.7),
+      THREE.MathUtils.randFloat(-0.7, -0.3),
+      -scrollSpeed*0.9
+    ),
+    angVel: new THREE.Vector3(
+      THREE.MathUtils.randFloat(-2, 2),
+      THREE.MathUtils.randFloat(-2, 2),
+      THREE.MathUtils.randFloat(-1.5, 1.5)
+    ),
+  });
+}
+
+function performSeparation(sep) {
+  if (sep.key === 'boosters') {
+    shipParts.boosters.forEach((b, i) => detachPart(b, i === 0 ? -1 : 1));
+    shipParts.boosters = [];
+  } else {
+    if (shipParts[sep.key]) detachPart(shipParts[sep.key], 0);
+    shipParts[sep.key] = null;
+  }
+  massMul *= 0.88;
+  moveFlame();
+  AudioSys.separation();
+  showStageMsg(sep.label);
+  score += 50;
+}
+
 // ---------- materiais / geometrias reutilizados ----------
+// Geometrias são compartilhadas (nunca descartadas): alocar uma nova por
+// pedra/meteoro gera pressão de GC e engasgos perceptíveis durante o jogo.
 const rockMats = [0x5c3a63, 0x4a2f4f, 0x3a2340].map(c => new THREE.MeshStandardMaterial({ color:c, flatShading:true }));
+const rockGeoPool = Array.from({length:8}, () => new THREE.IcosahedronGeometry(1, 0));
 const meteorMat = new THREE.MeshStandardMaterial({ color:0x8b6f47, flatShading:true });
+const meteorGeo = new THREE.IcosahedronGeometry(0.55, 0);
 const droneBodyGeo = new THREE.SphereGeometry(0.42, 8, 6);
 const droneMat = new THREE.MeshStandardMaterial({ color:0x667788, flatShading:true });
+const droneSensorGeo = new THREE.SphereGeometry(0.14, 6, 6);
 const droneSensorMat = new THREE.MeshStandardMaterial({ color:0xff3344, emissive:0x991122, emissiveIntensity:0.8 });
 const fuelCellMat = new THREE.MeshStandardMaterial({ color:0x33cc88, emissive:0x114433, emissiveIntensity:0.5, flatShading:true });
+const fuelCellGeo = new THREE.OctahedronGeometry(0.4, 0);
 const bulletPlayerGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6);
 const bulletPlayerMat = new THREE.MeshBasicMaterial({ color:0xffff44 });
 const bulletDroneGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6);
@@ -410,7 +561,8 @@ function buildBeltSegment(z) {
       const x = edge + dir*depth;
       const y = THREE.MathUtils.randFloat(-3.4, 3.4);
       const zz = z + THREE.MathUtils.randFloat(-CORRIDOR.segmentLength/2, CORRIDOR.segmentLength/2);
-      const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), rockMats[(Math.random()*rockMats.length)|0]);
+      const mesh = new THREE.Mesh(rockGeoPool[(Math.random()*rockGeoPool.length)|0], rockMats[(Math.random()*rockMats.length)|0]);
+      mesh.scale.setScalar(r);
       mesh.position.set(x, y, zz);
       mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
       mesh.userData.r = r;
@@ -425,7 +577,7 @@ function buildBeltSegment(z) {
 }
 
 function removeBeltSegment(seg) {
-  seg.rocks.forEach(r => { scene.remove(r); r.geometry.dispose(); });
+  seg.rocks.forEach(r => scene.remove(r)); // geometria é do pool compartilhado: não descartar
 }
 
 function currentSegment(z) {
@@ -458,7 +610,7 @@ function trySpawnObstacles(z, leftEdge, rightEdge) {
 }
 
 function spawnMeteor(x, z) {
-  const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), meteorMat);
+  const mesh = new THREE.Mesh(meteorGeo, meteorMat);
   mesh.position.set(x, 0, z);
   scene.add(mesh);
   meteors.push({ mesh, extraSpeed: THREE.MathUtils.randFloat(1.4,4), spin: THREE.MathUtils.randFloat(-2.5,2.5) });
@@ -467,7 +619,7 @@ function spawnMeteor(x, z) {
 function spawnDrone(x, z) {
   const group = new THREE.Group();
   group.add(new THREE.Mesh(droneBodyGeo, droneMat));
-  const sensor = new THREE.Mesh(new THREE.SphereGeometry(0.14,6,6), droneSensorMat);
+  const sensor = new THREE.Mesh(droneSensorGeo, droneSensorMat);
   sensor.position.set(0, 0.1, -0.4);
   group.add(sensor);
   group.position.set(x, 0, z);
@@ -476,7 +628,7 @@ function spawnDrone(x, z) {
 }
 
 function spawnFuelCell(x, z) {
-  const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.4, 0), fuelCellMat);
+  const mesh = new THREE.Mesh(fuelCellGeo, fuelCellMat);
   mesh.position.set(x, 0, z);
   scene.add(mesh);
   fuelCells.push({ mesh, phase: Math.random()*1000 });
@@ -493,7 +645,7 @@ function fireDroneBullet(d) {
 function spawnPlayerBullet() {
   const mesh = new THREE.Mesh(bulletPlayerGeo, bulletPlayerMat);
   mesh.rotation.x = Math.PI/2;
-  mesh.position.set(ship.position.x, ship.position.y, ship.position.z - 1);
+  mesh.position.set(ship.position.x, ship.position.y, ship.position.z - 1.4); // à frente do bico do foguete
   scene.add(mesh);
   playerBullets.push({ mesh, spawnMs: performance.now() });
 }
@@ -504,6 +656,7 @@ function clearAllEntities() {
   fuelCells.splice(0).forEach(f => scene.remove(f.mesh));
   playerBullets.splice(0).forEach(b => scene.remove(b.mesh));
   droneBullets.splice(0).forEach(b => scene.remove(b.mesh));
+  debris.splice(0).forEach(d => scene.remove(d.mesh));
   segments.splice(0).forEach(removeBeltSegment);
 }
 
@@ -617,6 +770,24 @@ const gameOverOverlay = document.getElementById('gameOverOverlay');
 const gameOverPanel = document.getElementById('gameOverPanel');
 const winOverlay = document.getElementById('winOverlay');
 const winPanel = document.getElementById('winPanel');
+const stageMsgEl = document.getElementById('stageMsg');
+const progressBarBg = document.getElementById('progressBarBg');
+
+// marcadores dos pontos de separação na barra de progresso
+STAGE_SEPARATIONS.forEach(s => {
+  const tick = document.createElement('div');
+  tick.className = 'stage-tick';
+  tick.style.left = (s.at*100)+'%';
+  progressBarBg.appendChild(tick);
+});
+
+let stageMsgTimer = null;
+function showStageMsg(text) {
+  stageMsgEl.textContent = text;
+  stageMsgEl.style.opacity = '1';
+  if (stageMsgTimer) clearTimeout(stageMsgTimer);
+  stageMsgTimer = setTimeout(() => stageMsgEl.style.opacity = '0', 2000);
+}
 
 function updateHUD() {
   const pct = fuel/100;
@@ -663,6 +834,9 @@ function startGame(diffKey) {
   nextSegmentZ = 0;
   for (let i=0;i<20;i++) { buildBeltSegment(nextSegmentZ); nextSegmentZ -= CORRIDOR.segmentLength; }
 
+  buildShip();           // remonta o foguete completo (estágios + boosters)
+  massMul = 1;
+  nextSeparation = 0;
   ship.position.set(0,0,0);
   ship.visible = true;
   moon.visible = false; moon.scale.set(1,1,1);
@@ -771,21 +945,30 @@ function animate() {
   const braking  = keys['ArrowDown'];
 
   const difficultyT = THREE.MathUtils.clamp(distanceTravelled/moonDistance, 0, 1);
+
+  // separação de estágios nos marcos de progresso
+  while (nextSeparation < STAGE_SEPARATIONS.length && difficultyT >= STAGE_SEPARATIONS[nextSeparation].at) {
+    performSeparation(STAGE_SEPARATIONS[nextSeparation]);
+    nextSeparation++;
+  }
+
   let target = THREE.MathUtils.lerp(SHIP_BASE.baseScroll, SHIP_BASE.maxScroll, difficultyT);
+  target *= 1 + (1-massMul)*0.3;   // mais leve = cruzeiro mais rápido
   if (boosting) target *= SHIP_BASE.boostMul;
   if (braking) target *= SHIP_BASE.brakeMul;
   scrollSpeed = damp(scrollSpeed, target, SHIP_BASE.scrollLerp, dt);
 
   let drain = (4 + (boosting?3:0) - (braking?2:0)) * diff.fuelDrainMul;
-  drain = Math.max(drain, 1);
+  drain = Math.max(drain, 1) * (0.55 + 0.45*massMul);  // mais leve = menos consumo
   fuel -= drain*dt;
 
-  if (keys['ArrowLeft'])  vx -= diff.thrust*dt;
-  if (keys['ArrowRight']) vx += diff.thrust*dt;
+  const effMaxSpeed = diff.maxSpeed * (1 + (1-massMul)*0.5);
+  if (keys['ArrowLeft'])  vx -= (diff.thrust/massMul)*dt;
+  if (keys['ArrowRight']) vx += (diff.thrust/massMul)*dt;
   vx += gravityDir*diff.gravity*dt;
   if (vx > 0) vx = Math.max(0, vx - diff.drag*dt);
   else if (vx < 0) vx = Math.min(0, vx + diff.drag*dt);
-  vx = THREE.MathUtils.clamp(vx, -diff.maxSpeed, diff.maxSpeed);
+  vx = THREE.MathUtils.clamp(vx, -effMaxSpeed, effMaxSpeed);
 
   ship.position.x += vx*dt;
   ship.position.z -= scrollSpeed*dt;
@@ -807,6 +990,25 @@ function animate() {
     if (now > invulnerableUntil) invulnerable = false;
   } else {
     ship.visible = true;
+  }
+
+  // chama do motor: tremula e estica com o empuxo
+  if (shipParts.flame) {
+    const thrustLevel = boosting ? 1.5 : (braking ? 0.45 : 1);
+    const flicker = 0.85 + Math.random()*0.3;
+    shipParts.flame.scale.set(flicker, thrustLevel*flicker, flicker); // Y local = comprimento (aponta para trás)
+    shipParts.flame.material.opacity = 0.55 + Math.random()*0.3;
+  }
+
+  // destroços dos estágios ejetados: tombam e ficam para trás
+  for (let i=debris.length-1;i>=0;i--) {
+    const d = debris[i];
+    d.mesh.position.addScaledVector(d.vel, dt);
+    d.vel.z += 1.6*dt; // motor apagado: perde velocidade e a nave o deixa para trás
+    d.mesh.rotation.x += d.angVel.x*dt;
+    d.mesh.rotation.y += d.angVel.y*dt;
+    d.mesh.rotation.z += d.angVel.z*dt;
+    if (d.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(d.mesh); debris.splice(i,1); }
   }
 
   while (ship.position.z - nextSegmentZ < CORRIDOR.aheadDistance) {
