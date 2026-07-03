@@ -1020,12 +1020,36 @@ const exhaustMaxLife = new Float32Array(EXHAUST_COUNT);
 const exhaustGeo = new THREE.BufferGeometry();
 exhaustGeo.setAttribute('position',new THREE.BufferAttribute(exhaustPositions,3));
 exhaustGeo.setAttribute('color',new THREE.BufferAttribute(exhaustColors,3));
-const exhaustPoints = new THREE.Points(exhaustGeo,new THREE.PointsMaterial({
+
+// Sprite radial compartilhado: elimina o aspecto quadrado dos Points e permite
+// sobrepor um núcleo quente a uma pluma de fumaça suave sem dobrar a simulação.
+const plumeCanvas=document.createElement('canvas');
+plumeCanvas.width=plumeCanvas.height=64;
+const plumeCtx=plumeCanvas.getContext('2d');
+const plumeGradient=plumeCtx.createRadialGradient(32,32,0,32,32,32);
+plumeGradient.addColorStop(0,'rgba(255,255,255,1)');
+plumeGradient.addColorStop(0.28,'rgba(255,255,255,0.88)');
+plumeGradient.addColorStop(0.68,'rgba(255,255,255,0.24)');
+plumeGradient.addColorStop(1,'rgba(255,255,255,0)');
+plumeCtx.fillStyle=plumeGradient; plumeCtx.fillRect(0,0,64,64);
+const plumeTexture=new THREE.CanvasTexture(plumeCanvas);
+
+const exhaustMat=new THREE.PointsMaterial({
   size:0.16, vertexColors:true, transparent:true, opacity:0.86,
-  blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true
-}));
+  map:plumeTexture, alphaTest:0.015, blending:THREE.AdditiveBlending,
+  depthWrite:false, sizeAttenuation:true
+});
+const smokeMat=new THREE.PointsMaterial({
+  size:0.48, color:0x8a91a0, transparent:true, opacity:0.2,
+  map:plumeTexture, alphaTest:0.01, blending:THREE.NormalBlending,
+  depthWrite:false, sizeAttenuation:true
+});
+const exhaustPoints = new THREE.Points(exhaustGeo,exhaustMat);
+const smokePoints = new THREE.Points(exhaustGeo,smokeMat);
 exhaustPoints.frustumCulled=false;
-scene.add(exhaustPoints);
+smokePoints.frustumCulled=false;
+smokePoints.renderOrder=-1;
+scene.add(smokePoints,exhaustPoints);
 
 function resetExhaust() {
   exhaustLife.fill(0);
@@ -1036,18 +1060,25 @@ resetExhaust();
 
 function updateExhaust(dt, thrustLevel) {
   const nozzleZ = shipParts.flame ? shipParts.flame.position.z : 0.4;
+  // A pluma permanece visível no cruzeiro e ganha volume sob maior empuxo.
+  exhaustMat.size=0.15+Math.min(thrustLevel,2.8)*0.025;
+  smokeMat.size=0.42+Math.min(thrustLevel,2.8)*0.09;
+  smokeMat.opacity=0.14+Math.min(thrustLevel,2.8)*0.055;
   for (let i=0;i<EXHAUST_COUNT;i++) {
     const j=i*3;
     exhaustLife[i]-=dt;
     if (exhaustLife[i]<=0) {
-      if (Math.random()>Math.min(1,dt*70*thrustLevel)) continue;
-      const life=THREE.MathUtils.randFloat(0.28,0.72);
+      if (Math.random()>Math.min(1,dt*70*thrustLevel)) {
+        exhaustPositions[j+1]=-9999;
+        continue;
+      }
+      const life=THREE.MathUtils.randFloat(0.38,0.92);
       exhaustLife[i]=exhaustMaxLife[i]=life;
       exhaustPositions[j]=ship.position.x+THREE.MathUtils.randFloat(-0.11,0.11);
       exhaustPositions[j+1]=ship.position.y+THREE.MathUtils.randFloat(-0.08,0.08);
       exhaustPositions[j+2]=ship.position.z+nozzleZ+0.25;
       exhaustVelocities[i].set(
-        THREE.MathUtils.randFloat(-0.22,0.22), THREE.MathUtils.randFloat(-0.18,0.18),
+        THREE.MathUtils.randFloat(-0.34,0.34), THREE.MathUtils.randFloat(-0.28,0.28),
         THREE.MathUtils.randFloat(1.8,3.8)*thrustLevel
       );
     } else {
