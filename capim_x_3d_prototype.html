@@ -865,7 +865,9 @@ for (let i=0;i<20;i++) { buildBeltSegment(nextSegmentZ); nextSegmentZ -= CORRIDO
 const warmup = new THREE.Group();
 warmup.visible = false;
 [[meteorGeo, meteorMat], [droneBodyGeo, droneMat], [droneSensorGeo, droneSensorMat],
- [fuelCellGeo, fuelCellMat], [bulletPlayerGeo, bulletPlayerMat], [bulletDroneGeo, bulletDroneMat]]
+ [tankBodyGeo, tankBodyMat], [tankCapGeo, tankBodyMat], [tankStripeGeo, tankStripeMat],
+ [tankWindowGeo, tankWindowMat], [tankValveGeo, tankValveMat], [tankWheelGeo, tankWheelMat],
+ [bulletPlayerGeo, bulletPlayerMat], [bulletDroneGeo, bulletDroneMat]]
   .forEach(([geo, mat]) => warmup.add(new THREE.Mesh(geo, mat)));
 scene.add(warmup);
 renderer.compile(scene, camera);
