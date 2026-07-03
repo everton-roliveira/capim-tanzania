@@ -1538,10 +1538,12 @@ const LaunchSequence = {
     this.ensureCountdown();
     state = 'launch';
 
-    selectOverlay.style.display = 'none';
+    introOverlay.style.display = 'none';
     titleOverlay.style.display = 'none';
+    selectOverlay.style.display = 'none';
     gameOverOverlay.style.display = 'none';
     winOverlay.style.display = 'none';
+    if (typeof spaceScene !== 'undefined' && spaceScene) spaceScene.style.display = 'none';  // some com o fundo do menu (senão ele cobre a cutscene)
 
     segments.forEach(s => s.rocks.forEach(r => r.visible = false));  // some com o cinturão-prévia (o jogo reconstrói)
 
