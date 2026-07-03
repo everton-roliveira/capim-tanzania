@@ -25,6 +25,11 @@ A missão é simples de explicar e difícil de cumprir: **atire, desvie, abaste�
 4. **Eventos Aleatórios**
 
 - **Evolução para 3D** — o jogo nasceu em 2D. Já tínhamos feito os efeitos sonoros quando surgiu o primeiro evento aleatório do jogo — e a partir dele decidimos transformar o jogo em 3D.
+- **"Legal o jogo, mas como ele ganha dinheiro?"** — desafio sorteado sobre monetização. Os ingredientes de uma economia fictícia pro jogo:
+  - **Uma moeda** — o jogador ganha "créditos" (ou combustível, estrelas, minérios...) ao jogar. Ex.: chegou na Lua = +100 créditos; chegou perto = +30.
+  - **Uma loja / upgrades** — com esses créditos ele compra melhorias: motor mais forte, tanque maior, escudo contra detritos, um foguete diferente.
+  - **Progressão que fica salva** — o que ele comprou continua lá na próxima vez. O jogo "lembra" do jogador.
+  - **(Opcional) Um item premium** — algo que, num jogo real, você pagaria para ter. No desafio é fictício, só para mostrar o conceito de monetização.
 
 5. **Stack**
 
