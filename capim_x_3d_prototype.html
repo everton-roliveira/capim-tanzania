@@ -130,12 +130,12 @@
     font-family:'Exo 2', sans-serif; text-transform:uppercase;
     font-size:24px; line-height:1.9; letter-spacing:0.5px;
     text-shadow:0 0 14px rgba(255,232,31,0.35);
-    animation:crawl 40s linear forwards;
+    animation:crawl 52s linear forwards;
     animation-play-state:paused;   /* só corre após o 1º gesto (permite áudio) */
   }
   @keyframes crawl {
     0%   { top:100%; }
-    100% { top:-180%; }
+    100% { top:-245%; }
   }
   /* título CAPIM-X no crawl — grande e imponente */
   .crawl-title {
@@ -886,6 +886,69 @@ function updateComet(dt) {
   }
 }
 
+// ---------- estação orbital (marco visual, sem colisão ou interação) ----------
+const spaceStation = (function buildSpaceStation(){
+  const group=new THREE.Group();
+  const hull=new THREE.MeshStandardMaterial({color:0xc4cbd2,metalness:0.72,roughness:0.3});
+  const dark=new THREE.MeshStandardMaterial({color:0x303740,metalness:0.65,roughness:0.48});
+  const gold=new THREE.MeshStandardMaterial({color:0xb88728,metalness:0.78,roughness:0.28});
+  const solar=new THREE.MeshStandardMaterial({color:0x173b72,metalness:0.46,roughness:0.3});
+  const beaconMats=[0x42cfff,0xff544d].map(color=>new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:2.2,roughness:0.2}));
+
+  const axial=(r,len,mat,segments=16)=>{
+    const mesh=new THREE.Mesh(new THREE.CylinderGeometry(r,r,len,segments),mat);
+    mesh.rotation.x=Math.PI/2;
+    return mesh;
+  };
+  const core=axial(0.48,2.5,hull,20); group.add(core);
+  [-0.95,0,0.95].forEach(z=>{
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(0.51,0.065,8,24),gold);
+    ring.position.z=z; group.add(ring);
+  });
+  const front=axial(0.3,1.15,hull,16); front.position.z=-1.72; group.add(front);
+  const dock=new THREE.Mesh(new THREE.TorusGeometry(0.3,0.08,8,20),dark); dock.position.z=-2.32; group.add(dock);
+
+  const truss=new THREE.Mesh(new THREE.BoxGeometry(7.8,0.11,0.16),dark); group.add(truss);
+  [-3.15,-1.85,1.85,3.15].forEach((x,index)=>{
+    const panel=new THREE.Mesh(new THREE.BoxGeometry(1.15,0.055,1.35),solar);
+    panel.position.set(x,0,0); group.add(panel);
+    for(let k=-1;k<=1;k++){
+      const grid=new THREE.Mesh(new THREE.BoxGeometry(0.025,0.066,1.3),gold);
+      grid.position.set(x+k*0.36,0,0); group.add(grid);
+    }
+    const edge=new THREE.Mesh(new THREE.BoxGeometry(1.18,0.07,0.035),gold);
+    edge.position.set(x,0,index%2?0.66:-0.66); group.add(edge);
+  });
+
+  const lab=axial(0.36,1.35,hull,16); lab.position.set(0,0.82,0.2); lab.rotation.z=Math.PI/2; group.add(lab);
+  const dish=new THREE.Mesh(new THREE.ConeGeometry(0.62,0.28,20,1,true),hull);
+  dish.position.set(0,1.35,0.25); dish.rotation.z=Math.PI; group.add(dish);
+  const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,1.1,8),dark);
+  mast.position.set(0,1.0,0.25); group.add(mast);
+
+  [-0.28,0.28].forEach((x,i)=>{
+    const beacon=new THREE.Mesh(new THREE.SphereGeometry(0.075,8,6),beaconMats[i]);
+    beacon.position.set(x,0.38,-1.08); group.add(beacon);
+  });
+  group.scale.setScalar(1.25);
+  group.rotation.set(0.18,0.25,-0.08);
+  group.traverse(obj=>{if(obj.isMesh){obj.castShadow=true;obj.receiveShadow=true;}});
+  group.visible=false; scene.add(group);
+  return {group,beaconMats};
+})();
+let spaceStationPassed=false;
+
+function updateSpaceStation(dt,now){
+  if(!spaceStation.group.visible)return;
+  spaceStation.group.rotation.y+=dt*0.055;
+  spaceStation.group.rotation.z+=dt*0.018;
+  spaceStation.beaconMats[0].emissiveIntensity=1.2+(Math.sin(now/180)+1)*1.8;
+  spaceStation.beaconMats[1].emissiveIntensity=1.2+(Math.sin(now/180+Math.PI)+1)*1.8;
+  if(spaceStation.group.position.z>ship.position.z+CORRIDOR.behindMargin){
+    spaceStation.group.visible=false; spaceStationPassed=true;
+  }
+}
+
 // ---------- nave (foguete multi-estágio) ----------
 // A Capim-X agora é um foguete de verdade: módulo de comando na ponta,
 // 2º estágio, 1º estágio com aletas e dois boosters laterais. Conforme
@@ -1614,21 +1677,23 @@ function updateHUD() {
 crawlText.innerHTML =
   '<span class="crawl-title">CAPIM-X</span>\n\n\n'+
   '2049.\n\n\n'+
-  'A Terra esgotou seu recurso mais precioso.\n'+
-  'A última reserva conhecida está na Lua. Dezenas\n'+
-  'de missões já tentaram chegar — nenhuma voltou.\n\n'+
-  'Seus destroços viraram parte do cinturão de\n'+
-  'meteoros: módulos, bocais e painéis partidos\n'+
-  'ainda cruzam a rota, à deriva no espaço. Alguns\n'+
-  'módulos armados ainda têm energia e disparam.\n\n'+
-  'A Capim-x carrega um canhão de mineração\n'+
-  'adaptado: abre caminho pelos meteoros e destroços.\n'+
-  'Não é uma nave de guerra — cada disparo\n'+
-  'consome combustível, o mesmo que decide se você\n'+
-  'chega ou vira mais um destroço.\n\n'+
-  'Sem freio: a nave desliza, a gravidade puxa,\n'+
-  'e a Lua cresce no horizonte.\n\n'+
-  '<span class="crawl-final">Desvie.<br>Atire.<br>Abasteça.<br>Chegue.</span>';
+  'A humanidade automatizou tudo — menos o desastre\n'+
+  'que não viu chegar: a ESMALTITA acabou.\n\n'+
+  'É o mineral bruto do esmalte. Sem ele, nenhum\n'+
+  'dente se forma ou se recupera. Chamaram de\n'+
+  'GRANDE CÁRIE. A Terra perdeu, literalmente,\n'+
+  'o sorriso.\n\n'+
+  'A última reserva está na Lua. Empresas correram\n'+
+  'para buscá-la — e quase todas explodiram tentando.\n'+
+  'O caminho virou um cemitério de foguetes: tanques,\n'+
+  'módulos e painéis à deriva. Alguns sistemas de\n'+
+  'armamento ainda têm energia e disparam às cegas.\n\n'+
+  'A Capim financiou o sorriso do país por anos.\n'+
+  'Agora vai financiar a fonte dele.\n\n'+
+  'A CAPIM-X aprendeu com os mortos: reabasteça nos\n'+
+  'tanques de quem falhou e reaproveite suas peças.\n'+
+  'Cada estágio perdido deixa você mais leve.\n\n'+
+  '<span class="crawl-final">Desvie.<br>Reabasteça.<br>Canibalize.<br>Pouse.<br>Traga o sorriso de volta.</span>';
 
 // ---------- campo de estrelas do overlay de introdução ----------
 (function buildStarfield() {
@@ -1678,6 +1743,10 @@ function startGame(diffKey) {
   ship.position.set(0,0,0);
   ship.rotation.set(0,0,0);   // zera pose (evita herdar a vertical de um pouso anterior)
   ship.visible = true;
+  spaceStation.group.position.set(10.5,3.4,-moonDistance*0.42);
+  spaceStation.group.rotation.set(0.18,0.25,-0.08);
+  spaceStation.group.visible=true;
+  spaceStationPassed=false;
   moon.visible = false; moon.scale.set(1,1,1); moon.rotation.set(0,0,0);
   removeFlag();
   removeAstronaut();
@@ -2317,6 +2386,7 @@ function updateAstronautSequence(dt) {
 
 function startLanding() {
   state = 'landing';
+  spaceStation.group.visible=false;
   landingT = 0;
   landStartPos.copy(ship.position);
   landStartRotX = ship.rotation.x;
@@ -2420,6 +2490,7 @@ function animate() {
   }
 
   const now = performance.now();
+  updateSpaceStation(dt,now);
   const boosting = keys['ArrowUp'];
   const braking  = keys['ArrowDown'];
 
