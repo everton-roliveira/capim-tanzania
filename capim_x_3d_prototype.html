@@ -110,12 +110,12 @@
     font-family:'Exo 2', sans-serif; text-transform:uppercase;
     font-size:24px; line-height:1.9; letter-spacing:0.5px;
     text-shadow:0 0 14px rgba(255,232,31,0.35);
-    animation:crawl 40s linear forwards;
+    animation:crawl 52s linear forwards;
     animation-play-state:paused;   /* só corre após o 1º gesto (permite áudio) */
   }
   @keyframes crawl {
     0%   { top:100%; }
-    100% { top:-180%; }
+    100% { top:-245%; }
   }
   /* título CAPIM-X no crawl — grande e imponente */
   .crawl-title {
@@ -1578,21 +1578,23 @@ function updateHUD() {
 crawlText.innerHTML =
   '<span class="crawl-title">CAPIM-X</span>\n\n\n'+
   '2049.\n\n\n'+
-  'A Terra esgotou seu recurso mais precioso.\n'+
-  'A última reserva conhecida está na Lua. Dezenas\n'+
-  'de missões já tentaram chegar — nenhuma voltou.\n\n'+
-  'Seus destroços viraram parte do cinturão de\n'+
-  'meteoros: módulos, bocais e painéis partidos\n'+
-  'ainda cruzam a rota, à deriva no espaço. Alguns\n'+
-  'módulos armados ainda têm energia e disparam.\n\n'+
-  'A Capim-x carrega um canhão de mineração\n'+
-  'adaptado: abre caminho pelos meteoros e destroços.\n'+
-  'Não é uma nave de guerra — cada disparo\n'+
-  'consome combustível, o mesmo que decide se você\n'+
-  'chega ou vira mais um destroço.\n\n'+
-  'Sem freio: a nave desliza, a gravidade puxa,\n'+
-  'e a Lua cresce no horizonte.\n\n'+
-  '<span class="crawl-final">Desvie.<br>Atire.<br>Abasteça.<br>Chegue.</span>';
+  'A humanidade automatizou tudo — menos o desastre\n'+
+  'que não viu chegar: a ESMALTITA acabou.\n\n'+
+  'É o mineral bruto do esmalte. Sem ele, nenhum\n'+
+  'dente se forma ou se recupera. Chamaram de\n'+
+  'GRANDE CÁRIE. A Terra perdeu, literalmente,\n'+
+  'o sorriso.\n\n'+
+  'A última reserva está na Lua. Empresas correram\n'+
+  'para buscá-la — e quase todas explodiram tentando.\n'+
+  'O caminho virou um cemitério de foguetes: tanques,\n'+
+  'módulos e painéis à deriva. Alguns sistemas de\n'+
+  'armamento ainda têm energia e disparam às cegas.\n\n'+
+  'A Capim financiou o sorriso do país por anos.\n'+
+  'Agora vai financiar a fonte dele.\n\n'+
+  'A CAPIM-X aprendeu com os mortos: reabasteça nos\n'+
+  'tanques de quem falhou e reaproveite suas peças.\n'+
+  'Cada estágio perdido deixa você mais leve.\n\n'+
+  '<span class="crawl-final">Desvie.<br>Reabasteça.<br>Canibalize.<br>Pouse.<br>Traga o sorriso de volta.</span>';
 
 // ---------- campo de estrelas do overlay de introdução ----------
 (function buildStarfield() {
