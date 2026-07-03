@@ -33,9 +33,10 @@ no regolito, que sobraram as maiores reservas de esmaltita do sistema. Virou o
 novo petróleo. O novo ouro. O novo flúor.
 
 O problema é que **quase todo mundo explode no meio do caminho**. O cinturão
-entre a Terra e a Lua hoje é um cemitério de missões: carcaças, tanques vazando e
-**drones de mineração** que enlouqueceram e atiram em qualquer um que chegue
-perto do "seu" pedaço de rocha.
+entre a Terra e a Lua hoje é um cemitério de missões: carcaças, tanques vazando,
+módulos partidos e painéis solares que seguem à deriva. Não são drones: são
+**pedaços dos foguetes que não conseguiram chegar**, tombando pelo espaço e
+cruzando a rota de quem tenta depois.
 
 ## Onde entra a Capim
 A Capim passou anos financiando o sorriso do país, uma consulta por vez. Quando a
@@ -60,7 +61,7 @@ Ou seja: você chega na Lua **em cima do fracasso dos outros**. Poético.
 | Elemento do jogo            | Significado na história                                   |
 |-----------------------------|----------------------------------------------------------|
 | Cinturão de asteroides      | Cemitério das missões que fracassaram                    |
-| Drones hostis               | Drones de mineração abandonados defendendo suas rochas   |
+| Destroços à deriva          | Peças dos foguetes que não conseguiram chegar à Lua      |
 | Células de combustível      | Tanques deixados por quem não voltou (reabastecer)       |
 | Separação de estágios       | Peças recuperadas dos destroços (foguete melhora)        |
 | Pousar na Lua               | Garantir a esmaltita e devolver o sorriso à Terra        |
@@ -79,8 +80,8 @@ Ou seja: você chega na Lua **em cima do fracasso dos outros**. Poético.
 >
 > A última reserva está na Lua. Chegar lá, que já foi coisa de nações, virou
 > corrida de empresa privada — e quase todas explodiram tentando. O caminho hoje
-> é um cemitério de foguetes: destroços, tanques vazando e drones de mineração
-> que atiram em qualquer um.
+> é um cemitério de foguetes: destroços, tanques vazando e módulos partidos à
+> deriva, ainda cruzando o caminho de quem tenta chegar.
 >
 > A Capim financiou o sorriso do país por anos. Agora vai financiar a fonte dele.
 >
