@@ -320,16 +320,18 @@ const SHIP_BASE = {
 
 const CORRIDOR = {
   segmentLength: 10,      // 1 "linha" — equivalente aos 32px do original
-  beltWidth: 3.2,         // banda estreita e densa — lê como barreira, não como poeira espalhada pelo mapa
+  beltWidth: 3.2,         // zona densa junto à borda (também referência do clamp de segurança)
   beltOverlap: 0.35,      // só uma borda irregular (aspecto orgânico), sem invadir muito o corredor
-  rocksPerSide: 9,
-  rockMinR: 0.55,
-  rockMaxR: 1.15,
   driftStep: 1.1,
   maxCenterOffset: 7,
   aheadDistance: 150,
   behindMargin: 20,
   hardLimitMargin: 6,     // clamp de segurança bem além da nuvem, invisível
+  // O cinturão é um campo com gradiente de densidade, não uma parede:
+  // borda densa e irregular → dispersão média → gigantes esparsos ao fundo.
+  edgeRocks: [4, 6],      // pedras junto à borda (r 0.5–1.15)
+  midRocks:  [2, 4],      // dispersão média, mais espalhada em Y (r 0.4–1.7)
+  farChance: 0.55,        // chance de 1 gigante de fundo por lado (r 1.8–4)
 };
 
 /* =======================================================
@@ -471,9 +473,28 @@ const AudioSys = {
   gameOver(){ if (!this.ctx) return; this.stopMusic(); const t=this.ctx.currentTime;
               [57,53,50,45].forEach((m,i)=> this.blip(t+i*0.22, this.mtof(m), 0.42, 'sawtooth', this.sfxGain, 0.24));
               this.blip(t+0.9, this.mtof(33), 1.3, 'sine', this.sfxGain, 0.30); },
-  win()     { if (!this.ctx) return; this.stopMusic(); const t=this.ctx.currentTime;
-              [60,64,67,72,76].forEach((m,i)=> this.blip(t+i*0.13, this.mtof(m), 0.34, 'square', this.sfxGain, 0.22));
-              [60,64,67,72].forEach(m => this.blip(t+0.66, this.mtof(m), 1.5, 'triangle', this.sfxGain, 0.16)); }
+  // tema de conquista: fanfarra + melodia triunfante em Dó maior + acorde final
+  win() {
+    if (!this.ctx) return;
+    this.stopMusic();
+    const t = this.ctx.currentTime + 0.05;
+    const M = this.sfxGain;
+    // fanfarra de abertura (brilhante, ascendente)
+    [[0.00,67,0.14],[0.12,72,0.14],[0.24,76,0.14],[0.36,79,0.36]]
+      .forEach(([o,n,d]) => this.blip(t+o, this.mtof(n), d, 'square', M, 0.20));
+    // pads: progressão triunfante C - G - Am - F - C
+    const pad = (o,ch,d) => ch.forEach(n => this.blip(t+o, this.mtof(n), d, 'sine', M, 0.05));
+    pad(0.8, CH.C, 1.2); pad(2.0, CH.G, 1.2); pad(3.2, CH.Am, 1.2); pad(4.4, CH.F, 1.2);
+    [60,64,67,72].forEach(n => this.blip(t+5.6, this.mtof(n), 2.2, 'sine', M, 0.06)); // acorde final
+    // baixo grave nas trocas de acorde
+    [[0.8,36],[2.0,31],[3.2,33],[4.4,29],[5.6,36]].forEach(([o,n]) => this.blip(t+o, this.mtof(n), 1.1, 'triangle', M, 0.12));
+    // melodia triunfante por cima
+    [[0.8,72,0.5],[1.3,74,0.3],[1.6,76,0.7],[2.4,79,0.7],[3.2,77,0.5],
+     [3.7,76,0.5],[4.4,74,0.4],[4.8,72,0.4],[5.6,84,1.8]]
+      .forEach(([o,n,d]) => this.blip(t+o, this.mtof(n), d, 'triangle', M, 0.18));
+    // "prato" de vitória no acorde final
+    this.noise(t+5.6, 1.2, 0.10, 6000);
+  }
 };
 
 /* =======================================================
@@ -531,14 +552,94 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.1);
 sun.position.set(6, 12, 8);
 scene.add(sun);
 
-// ---------- lua distante (narrativa) ----------
+// ---------- lua (relevo 3D procedural) ----------
+// Duas texturas geradas em canvas: um HEIGHTMAP (piso rebaixado + borda
+// elevada por cratera) usado como displacement + bump — dá relevo real, que
+// aparece até na silhueta — e um COLOR map com mares de basalto, tom quente
+// e raios de ejecta. Sem assets externos.
+function makeMoonTextures() {
+  const size = 1024;
+
+  // ---- HEIGHTMAP (cinza 128 = altura zero) ----
+  const hc = document.createElement('canvas'); hc.width = hc.height = size;
+  const h = hc.getContext('2d');
+  h.fillStyle = '#808080'; h.fillRect(0, 0, size, size);
+  // ondulação de fundo (relevo suave e amplo)
+  for (let i = 0; i < 46; i++) {
+    const x = Math.random()*size, y = Math.random()*size, r = 60 + Math.random()*190;
+    const v = (128 + (Math.random()*2-1)*20) | 0;
+    const g = h.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(${v},${v},${v},0.5)`); g.addColorStop(1, `rgba(${v},${v},${v},0)`);
+    h.fillStyle = g; h.beginPath(); h.arc(x, y, r, 0, 7); h.fill();
+  }
+  // crateras com perfil realista: piso fundo -> subida -> borda elevada
+  const craters = [];
+  function crater(x, y, r) {
+    const g = h.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0.00, 'rgba(72,72,72,0.92)');   // piso rebaixado
+    g.addColorStop(0.55, 'rgba(98,98,98,0.75)');
+    g.addColorStop(0.80, 'rgba(150,150,150,0.55)');
+    g.addColorStop(0.88, 'rgba(232,232,232,0.95)'); // borda elevada (rim)
+    g.addColorStop(1.00, 'rgba(128,128,128,0)');
+    h.fillStyle = g; h.beginPath(); h.arc(x, y, r, 0, 7); h.fill();
+    craters.push({ x, y, r });
+  }
+  for (let i = 0; i < 12;  i++) crater(Math.random()*size, Math.random()*size, 42 + Math.random()*74); // grandes
+  for (let i = 0; i < 55;  i++) crater(Math.random()*size, Math.random()*size, 15 + Math.random()*30); // médias
+  for (let i = 0; i < 300; i++) crater(Math.random()*size, Math.random()*size, 3  + Math.random()*10); // pequenas
+
+  // ---- COLOR map (cinza-creme + mares + eco das crateras + ejecta) ----
+  const cc = document.createElement('canvas'); cc.width = cc.height = size;
+  const c = cc.getContext('2d');
+  c.fillStyle = '#9c9a90'; c.fillRect(0, 0, size, size);
+  for (let i = 0; i < 7; i++) { // mares de basalto (escuros, azulados)
+    const x = Math.random()*size, y = Math.random()*size, r = 120 + Math.random()*190;
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(72,74,84,0.85)'); g.addColorStop(0.7, 'rgba(78,80,90,0.4)'); g.addColorStop(1, 'rgba(78,80,90,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+  }
+  // raios de ejecta em algumas crateras grandes (estilo Tycho)
+  craters.filter(cr => cr.r > 60).slice(0, 4).forEach(({ x, y, r }) => {
+    for (let k = 0; k < 12; k++) {
+      const a = Math.random()*Math.PI*2, len = r*(2.5 + Math.random()*3);
+      c.strokeStyle = 'rgba(200,198,188,0.10)'; c.lineWidth = 1 + Math.random()*2;
+      c.beginPath(); c.moveTo(x + Math.cos(a)*r*0.9, y + Math.sin(a)*r*0.9);
+      c.lineTo(x + Math.cos(a)*len, y + Math.sin(a)*len); c.stroke();
+    }
+  });
+  craters.forEach(({ x, y, r }) => { // piso escuro + rim claro, ecoando o relevo
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0.00, 'rgba(58,58,64,0.35)');
+    g.addColorStop(0.82, 'rgba(58,58,64,0)');
+    g.addColorStop(0.90, 'rgba(214,210,198,0.5)');
+    g.addColorStop(1.00, 'rgba(214,210,198,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+  });
+
+  const bump = new THREE.CanvasTexture(hc);
+  const color = new THREE.CanvasTexture(cc);
+  return { bump, color };
+}
+
+const moonTex = makeMoonTextures();
 const moon = new THREE.Mesh(
-  new THREE.SphereGeometry(40, 24, 24),
-  new THREE.MeshStandardMaterial({ color:0xdddddd, roughness:1 })
+  new THREE.SphereGeometry(40, 180, 180),   // alta resolução: o displacement esculpe a silhueta
+  new THREE.MeshStandardMaterial({
+    map: moonTex.color,
+    bumpMap: moonTex.bump,          bumpScale: 2.5,
+    displacementMap: moonTex.bump,  displacementScale: 2.6, displacementBias: -1.3, // 128 cinza = 0
+    roughness: 1, metalness: 0
+  })
 );
 moon.position.set(20, 30, -1800);
 moon.visible = false;
 scene.add(moon);
+// halo sutil de atmosfera/luz (filho: acompanha posição e escala da Lua)
+const moonGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(42.5, 40, 40),
+  new THREE.MeshBasicMaterial({ color:0xaabbff, transparent:true, opacity:0.10, side:THREE.BackSide, blending:THREE.AdditiveBlending, depthWrite:false })
+);
+moon.add(moonGlow);
 
 // ---------- estrelas ----------
 (function makeStarfield() {
@@ -554,6 +655,66 @@ scene.add(moon);
   const mat = new THREE.PointsMaterial({ color:0xffffff, size:0.6, sizeAttenuation:true });
   scene.add(new THREE.Points(geo, mat));
 })();
+
+// ---------- cometa de fundo (puramente decorativo) ----------
+// Cruza o céu na diagonal de tempos em tempos, inclusive no menu.
+// Materiais com fog:false — ele vive longe demais, o fog o apagaria.
+const comet = (function(){
+  const g = new THREE.Group();
+  const head = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(1.4, 1),
+    new THREE.MeshBasicMaterial({ color:0xdfeeff, fog:false })
+  );
+  const glow = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(2.4, 1),
+    new THREE.MeshBasicMaterial({ color:0x88bbff, transparent:true, opacity:0.25, blending:THREE.AdditiveBlending, depthWrite:false, fog:false })
+  );
+  const tailGeo = new THREE.ConeGeometry(1.9, 30, 8, 1, true);
+  tailGeo.translate(0, 15, 0); // base do cone na cabeça, cauda estendendo em +Y
+  const tail = new THREE.Mesh(
+    tailGeo,
+    new THREE.MeshBasicMaterial({ color:0x6699ff, transparent:true, opacity:0.22, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, fog:false })
+  );
+  g.add(head, glow, tail);
+  g.visible = false;
+  scene.add(g);
+  return { g, tail, vel:new THREE.Vector3(), active:false, nextAt:5 }; // 1º cometa ~5s após o load
+})();
+
+function updateComet(dt) {
+  const elapsed = performance.now()/1000;
+  if (!comet.active) {
+    if (elapsed >= comet.nextAt) {
+      const dirX = Math.random() < 0.5 ? 1 : -1;
+      // a câmera olha ~30° para baixo: o "céu" visível é uma faixa estreita
+      // logo acima do corredor — o cometa cruza dentro dela, ao fundo
+      comet.g.position.set(
+        -dirX*130,
+        THREE.MathUtils.randFloat(6, 16),
+        ship.position.z - THREE.MathUtils.randFloat(180, 280)
+      );
+      comet.vel.set(
+        dirX*THREE.MathUtils.randFloat(20, 30),
+        THREE.MathUtils.randFloat(-1.5, 1.5),
+        THREE.MathUtils.randFloat(-6, -2)
+      );
+      // cauda aponta para longe do sol (aqui: oposta ao movimento)
+      comet.tail.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0,1,0),
+        comet.vel.clone().negate().normalize()
+      );
+      comet.active = true;
+      comet.g.visible = true;
+    }
+    return;
+  }
+  comet.g.position.addScaledVector(comet.vel, dt);
+  if (Math.abs(comet.g.position.x) > 150) {
+    comet.active = false;
+    comet.g.visible = false;
+    comet.nextAt = elapsed + THREE.MathUtils.randFloat(16, 34);
+  }
+}
 
 // ---------- nave (foguete multi-estágio) ----------
 // A Capim-X agora é um foguete de verdade: módulo de comando na ponta,
@@ -724,8 +885,22 @@ const droneBodyGeo = new THREE.SphereGeometry(0.42, 8, 6);
 const droneMat = new THREE.MeshStandardMaterial({ color:0x667788, flatShading:true });
 const droneSensorGeo = new THREE.SphereGeometry(0.14, 6, 6);
 const droneSensorMat = new THREE.MeshStandardMaterial({ color:0xff3344, emissive:0x991122, emissiveIntensity:0.8 });
-const fuelCellMat = new THREE.MeshStandardMaterial({ color:0x33cc88, emissive:0x114433, emissiveIntensity:0.5, flatShading:true });
-const fuelCellGeo = new THREE.OctahedronGeometry(0.4, 0);
+// Célula de combustível — tanque pressurizado (conceito 1 de
+// docs/combustivel-foguete-3d.jsx): cilindro metálico com tampas
+// arredondadas, faixas de alerta e visor de líquido brilhante.
+// Geometrias compartilhadas (mesmo motivo do rockGeoPool: evitar
+// alocação por spawn) e sem PointLight por instância (custo de perf).
+const tankBodyMat = new THREE.MeshStandardMaterial({ color:0xb8bec8, roughness:0.3, metalness:0.9 });
+const tankBodyGeo = new THREE.CylinderGeometry(0.33, 0.33, 0.84, 16);
+const tankCapGeo = new THREE.SphereGeometry(0.33, 16, 10, 0, Math.PI*2, 0, Math.PI/2);
+const tankStripeMat = new THREE.MeshStandardMaterial({ color:0xf2b705, roughness:0.5, metalness:0.2 });
+const tankStripeGeo = new THREE.CylinderGeometry(0.339, 0.339, 0.084, 16);
+const tankWindowMat = new THREE.MeshStandardMaterial({ color:0x00e5ff, emissive:0x00c8e8, emissiveIntensity:1.6, roughness:0.1 });
+const tankWindowGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.42, 12);
+const tankValveMat = new THREE.MeshStandardMaterial({ color:0x8a3030, roughness:0.4, metalness:0.6 });
+const tankValveGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.18, 10);
+const tankWheelMat = new THREE.MeshStandardMaterial({ color:0xcc4444, roughness:0.4, metalness:0.5 });
+const tankWheelGeo = new THREE.TorusGeometry(0.108, 0.021, 8, 16);
 const bulletPlayerGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6);
 const bulletPlayerMat = new THREE.MeshBasicMaterial({ color:0xffff44 });
 const bulletDroneGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6);
@@ -764,19 +939,35 @@ function buildBeltSegment(z) {
 
   const rocks = [];
   [[leftEdge,-1], [rightEdge,1]].forEach(([edge,dir]) => {
-    for (let i=0; i<CORRIDOR.rocksPerSide; i++) {
-      const r = THREE.MathUtils.randFloat(CORRIDOR.rockMinR, CORRIDOR.rockMaxR);
-      const depth = THREE.MathUtils.randFloat(-CORRIDOR.beltOverlap, CORRIDOR.beltWidth);
-      const x = edge + dir*depth;
-      const y = THREE.MathUtils.randFloat(-3.4, 3.4);
-      const zz = z + THREE.MathUtils.randFloat(-CORRIDOR.segmentLength/2, CORRIDOR.segmentLength/2);
+    const rand = THREE.MathUtils.randFloat;
+    const halfSeg = CORRIDOR.segmentLength/2;
+    // pedra irregular: escala levemente diferente por eixo + rotação lenta própria
+    const addRock = (depth, y, r) => {
       const mesh = new THREE.Mesh(rockGeoPool[(Math.random()*rockGeoPool.length)|0], rockMats[(Math.random()*rockMats.length)|0]);
-      mesh.scale.setScalar(r);
-      mesh.position.set(x, y, zz);
+      mesh.scale.set(r*rand(0.75,1.25), r*rand(0.75,1.25), r*rand(0.75,1.25));
+      mesh.position.set(edge + dir*depth, y, z + rand(-halfSeg, halfSeg));
       mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
-      mesh.userData.r = r;
+      mesh.userData.r = r;                 // colisão usa o raio nominal (levemente a favor do jogador)
+      mesh.userData.spin = rand(0.08, 0.45) * (Math.random()<0.5 ? -1 : 1);
+      mesh.userData.spinAxis = (Math.random()*3)|0; // 0=x 1=y 2=z
       scene.add(mesh);
       rocks.push(mesh);
+    };
+
+    // borda: aglomerado denso e irregular (concentrado perto do corredor)
+    const nEdge = THREE.MathUtils.randInt(CORRIDOR.edgeRocks[0], CORRIDOR.edgeRocks[1]);
+    for (let i=0; i<nEdge; i++) {
+      const depth = -CORRIDOR.beltOverlap + Math.pow(Math.random(), 1.6) * CORRIDOR.beltWidth;
+      addRock(depth, rand(-3.4, 3.4), rand(0.5, 1.15));
+    }
+    // dispersão média: menos pedras, mais espalhadas (inclusive em altura)
+    const nMid = THREE.MathUtils.randInt(CORRIDOR.midRocks[0], CORRIDOR.midRocks[1]);
+    for (let i=0; i<nMid; i++) {
+      addRock(rand(CORRIDOR.beltWidth, 7), rand(-5.5, 5.5), rand(0.4, 1.7));
+    }
+    // fundo: gigante ocasional, longe e deslocado — dá profundidade ao campo
+    if (Math.random() < CORRIDOR.farChance) {
+      addRock(rand(7, 17), rand(-9, 9), rand(1.8, 4));
     }
   });
 
@@ -837,10 +1028,26 @@ function spawnDrone(x, z) {
 }
 
 function spawnFuelCell(x, z) {
-  const mesh = new THREE.Mesh(fuelCellGeo, fuelCellMat);
-  mesh.position.set(x, 0, z);
-  scene.add(mesh);
-  fuelCells.push({ mesh, phase: Math.random()*1000 });
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(tankBodyGeo, tankBodyMat));
+  const top = new THREE.Mesh(tankCapGeo, tankBodyMat); top.position.y = 0.42;
+  group.add(top);
+  const bottom = new THREE.Mesh(tankCapGeo, tankBodyMat); bottom.rotation.x = Math.PI; bottom.position.y = -0.42;
+  group.add(bottom);
+  [-0.27, 0.27].forEach(y => {
+    const stripe = new THREE.Mesh(tankStripeGeo, tankStripeMat); stripe.position.y = y;
+    group.add(stripe);
+  });
+  const win = new THREE.Mesh(tankWindowGeo, tankWindowMat);
+  win.position.set(0, 0, 0.25);
+  group.add(win);
+  const valve = new THREE.Mesh(tankValveGeo, tankValveMat); valve.position.y = 0.75;
+  group.add(valve);
+  const wheel = new THREE.Mesh(tankWheelGeo, tankWheelMat); wheel.rotation.x = Math.PI/2; wheel.position.y = 0.85;
+  group.add(wheel);
+  group.position.set(x, 0, z);
+  scene.add(group);
+  fuelCells.push({ mesh:group, phase: Math.random()*1000 });
 }
 
 function fireDroneBullet(d) {
@@ -866,10 +1073,24 @@ function clearAllEntities() {
   playerBullets.splice(0).forEach(b => scene.remove(b.mesh));
   droneBullets.splice(0).forEach(b => scene.remove(b.mesh));
   debris.splice(0).forEach(d => scene.remove(d.mesh));
+  dustParts.splice(0).forEach(d => scene.remove(d.mesh));
   segments.splice(0).forEach(removeBeltSegment);
 }
 
 // nada de cinturão de asteroides atrás do menu — mesmo fundo limpo (só estrelas) do jogo 2D
+
+// pré-compila todos os shaders — sem isso, a 1ª aparição de cada objeto
+// (cometa, lua, balas, meteoros...) custaria uma trava no meio do jogo.
+// Materiais que só entram em cena via spawn ganham um mesh invisível de aquecimento.
+const warmup = new THREE.Group();
+warmup.visible = false;
+[[meteorGeo, meteorMat], [droneBodyGeo, droneMat], [droneSensorGeo, droneSensorMat],
+ [tankBodyGeo, tankBodyMat], [tankCapGeo, tankBodyMat], [tankStripeGeo, tankStripeMat],
+ [tankWindowGeo, tankWindowMat], [tankValveGeo, tankValveMat], [tankWheelGeo, tankWheelMat],
+ [bulletPlayerGeo, bulletPlayerMat], [bulletDroneGeo, bulletDroneMat]]
+  .forEach(([geo, mat]) => warmup.add(new THREE.Mesh(geo, mat)));
+scene.add(warmup);
+renderer.compile(scene, camera);
 
 // ---------- dano / vida ----------
 const flashEl = document.getElementById('flash');
@@ -879,7 +1100,7 @@ function flashHit() {
 }
 
 function damagePlayer() {
-  if (invulnerable || state !== 'playing') return;
+  if (invulnerable || state !== 'playing' || debugGod) return;
   lives--;
   AudioSys.explosion();
   flashHit();
@@ -1070,8 +1291,9 @@ function startGame(diffKey) {
   massMul = 1;
   nextSeparation = 0;
   ship.position.set(0,0,0);
+  ship.rotation.set(0,0,0);   // zera pose (evita herdar a vertical de um pouso anterior)
   ship.visible = true;
-  moon.visible = false; moon.scale.set(1,1,1);
+  moon.visible = false; moon.scale.set(1,1,1); moon.rotation.set(0,0,0);
 
   introOverlay.style.display = 'none';
   titleOverlay.style.display = 'none';
@@ -1115,20 +1337,28 @@ function triggerGameOver(reason) {
   gameOverOverlay.style.display = 'flex';
 }
 
-function winGame() {
-  state = 'win';
-  ship.visible = false;
-  RadioChatter.stop();
-  AudioSys.win();
-  moon.visible = true;
-  winPanel.textContent =
-    `A CAPIM-X CHEGOU NA LUA\n\nDificuldade: ${diff.label}\nScore: ${Math.floor(score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`;
-  winOverlay.style.display = 'flex';
-}
+// vitória: agora passa pela cutscene de pouso — ver bloco
+// "cutscene de pouso na Lua" (startLanding -> finishLanding) mais abaixo.
 
 // ---------- input ----------
 const keys = {};
 const CAPTURED_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'];
+
+// ---------- modo debug (ative com ?debug na URL) ----------
+const DEBUG = location.search.includes('debug');
+let debugGod = false;
+if (DEBUG) {
+  const dh = document.createElement('div');
+  dh.textContent = 'DEBUG   [L] pular p/ pouso   [G] god mode';
+  dh.style.cssText = 'position:fixed;right:14px;bottom:26px;font:11px monospace;color:#ff77cc;letter-spacing:1px;z-index:6;pointer-events:none;text-shadow:0 0 6px rgba(255,0,120,0.5)';
+  document.body.appendChild(dh);
+}
+
+// pula direto para a cutscene de pouso (inicia um jogo se necessário)
+function debugToEnding() {
+  if (state !== 'playing' && state !== 'landing' && state !== 'win') startGame('medio');
+  if (state === 'playing') startLanding();
+}
 
 function armAudio() {
   AudioSys.init();
@@ -1166,6 +1396,11 @@ addEventListener('keydown', e => {
   armAudio();
   if (e.code === 'KeyM') { AudioSys.toggleMute(); if (AudioSys.muted) RadioChatter.stop(); }
 
+  if (DEBUG) {
+    if (e.code === 'KeyL') { debugToEnding(); return; }
+    if (e.code === 'KeyG') { debugGod = !debugGod; if (state === 'playing') showStageMsg('GOD MODE ' + (debugGod ? 'ON' : 'OFF')); }
+  }
+
   if (state === 'intro') { if (!introStarted) beginIntro(); else goToTitle(); return; }
   if (state === 'title') { if (e.code==='Enter' || e.code==='Space') goToSelect(); return; }
   if (state === 'select' && e.code === 'Escape') { goBack(); return; }
@@ -1198,6 +1433,104 @@ const camOffset = new THREE.Vector3(0, 7.5, 9.5);
 const desiredCamPos = new THREE.Vector3();
 const camTarget = new THREE.Vector3();
 
+// ---------- cutscene de pouso na Lua (não-interativa) ----------
+function smoothstep(t) { t = THREE.MathUtils.clamp(t, 0, 1); return t*t*(3 - 2*t); }
+
+const LANDING_DURATION = 5.5;             // segundos da descida
+let landingT = 0, landStartRotX = 0, landStartRotZ = 0;
+const landStartPos   = new THREE.Vector3();
+const touchdown      = new THREE.Vector3();
+const camStart       = new THREE.Vector3();
+const camTargetStart = new THREE.Vector3();
+const camLookTarget  = new THREE.Vector3();
+const camEndV        = new THREE.Vector3();
+
+const dustGeo = new THREE.SphereGeometry(0.12, 6, 6);
+const dustParts = [];
+
+function startLanding() {
+  state = 'landing';
+  landingT = 0;
+  landStartPos.copy(ship.position);
+  landStartRotX = ship.rotation.x;
+  landStartRotZ = ship.rotation.z;
+  ship.visible = true;
+
+  // posiciona a Lua grande, logo abaixo e um pouco à frente da nave
+  const S = 1.6; moon.scale.setScalar(S); moon.visible = true;
+  const effR = 40*S, descent = 42, forward = 26;
+  moon.position.set(ship.position.x, ship.position.y - descent - effR, ship.position.z - forward);
+  touchdown.set(moon.position.x, moon.position.y + effR + 0.6, moon.position.z); // topo da Lua
+
+  camStart.copy(camera.position);
+  camTargetStart.copy(ship.position);
+}
+
+function updateLanding(dt) {
+  landingT = Math.min(1, landingT + dt/LANDING_DURATION);
+  const e = smoothstep(landingT);
+
+  // desce do ponto inicial até o topo da Lua
+  ship.position.lerpVectors(landStartPos, touchdown, e);
+  // gira para a vertical: nariz para cima, motor/retrofoguete para baixo
+  ship.rotation.x = landStartRotX + (Math.PI/2 - landStartRotX)*e;
+  ship.rotation.z = landStartRotZ*(1 - e);
+
+  // retrofoguete de frenagem: chama cresce na aproximação final
+  if (shipParts.flame) {
+    const retro = 0.8 + e*1.8 + Math.random()*0.3;
+    shipParts.flame.scale.set(1.1, retro, 1.1);
+    shipParts.flame.material.opacity = 0.6 + Math.random()*0.3;
+  }
+
+  moon.rotation.y += dt*0.05;
+
+  // câmera acompanha a descida e fecha num enquadramento da superfície
+  camEndV.set(touchdown.x + 7, touchdown.y + 5, touchdown.z + 11);
+  camera.position.lerpVectors(camStart, camEndV, smoothstep(Math.min(1, landingT*1.15)));
+  camLookTarget.lerpVectors(camTargetStart, touchdown, e);
+  camLookTarget.y += 2.5*e;   // sobe a mira no fim -> nave no terço inferior (fora do painel)
+  camera.lookAt(camLookTarget);
+
+  if (landingT >= 1) finishLanding();
+}
+
+function spawnDust() {
+  for (let i = 0; i < 18; i++) {
+    const m = new THREE.Mesh(dustGeo, new THREE.MeshBasicMaterial({ color:0xc4c4d0, transparent:true, opacity:0.85 }));
+    m.position.copy(touchdown);
+    scene.add(m);
+    const ang = Math.random()*Math.PI*2, sp = THREE.MathUtils.randFloat(2, 5);
+    dustParts.push({ mesh:m, vel:new THREE.Vector3(Math.cos(ang)*sp, THREE.MathUtils.randFloat(1.5, 3.5), Math.sin(ang)*sp), life:1 });
+  }
+}
+
+function finishLanding() {
+  spawnDust();
+  RadioChatter.stop();   // silencia o chatter antes do tema de conquista
+  AudioSys.win();
+  state = 'win';
+  ship.visible = true;   // fica pousada e visível
+  winPanel.textContent =
+    `A CAPIM-X POUSOU NA LUA\n\nDificuldade: ${diff.label}\nScore: ${Math.floor(score)}\n\n[1] Fácil  [2] Médio  [3] Difícil`;
+  winOverlay.style.display = 'flex';
+}
+
+function updateWinIdle(dt) {
+  moon.rotation.y += dt*0.04;
+  if (shipParts.flame) shipParts.flame.material.opacity = 0; // motor desligado após pousar
+  for (let i = dustParts.length-1; i >= 0; i--) {
+    const d = dustParts[i];
+    d.mesh.position.addScaledVector(d.vel, dt);
+    d.vel.y -= 5*dt;                 // "gravidade" puxa a poeira de volta
+    d.vel.multiplyScalar(0.96);
+    d.life -= dt*0.7;
+    d.mesh.material.opacity = Math.max(0, d.life)*0.85;
+    d.mesh.scale.setScalar(1 + (1 - d.life)*1.6);
+    if (d.life <= 0) { scene.remove(d.mesh); dustParts.splice(i, 1); }
+  }
+}
+
 // ---------- loop principal ----------
 const clock = new THREE.Clock();
 
@@ -1205,6 +1538,9 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
 
+  updateComet(dt); // roda em qualquer estado — o cometa também cruza o céu do menu
+  if (state === 'landing') { updateLanding(dt); renderer.render(scene, camera); return; }
+  if (state === 'win')     { updateWinIdle(dt); renderer.render(scene, camera); return; }
   if (state !== 'playing') {
     renderer.render(scene, camera);
     return;
@@ -1238,6 +1574,7 @@ function animate() {
   let drain = (4 + (boosting?3:0) - (braking?2:0)) * diff.fuelDrainMul;
   drain = Math.max(drain, 1) * (0.55 + 0.45*massMul);  // mais leve = menos consumo
   fuel -= drain*dt;
+  if (debugGod) fuel = 100;   // debug: combustível infinito
 
   const effMaxSpeed = diff.maxSpeed * (1 + (1-massMul)*0.5);
   if (keys['ArrowLeft'])  vx -= (diff.thrust/massMul)*dt;
@@ -1296,6 +1633,16 @@ function animate() {
     removeBeltSegment(segments.shift());
   }
 
+  // pedras do cinturão tombam devagar no próprio eixo — campo vivo, não parede
+  for (const seg of segments) {
+    for (const rock of seg.rocks) {
+      const u = rock.userData;
+      if (u.spinAxis === 0) rock.rotation.x += u.spin*dt;
+      else if (u.spinAxis === 1) rock.rotation.y += u.spin*dt;
+      else rock.rotation.z += u.spin*dt;
+    }
+  }
+
   for (let i=meteors.length-1;i>=0;i--) {
     const m = meteors[i];
     m.mesh.position.z += m.extraSpeed*dt;
@@ -1311,7 +1658,7 @@ function animate() {
     if (d.fireCd <= 0) { fireDroneBullet(d); d.fireCd = THREE.MathUtils.randFloat(1500,3000); }
     if (d.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(d.mesh); drones.splice(i,1); }
   }
-  for (const f of fuelCells) { f.mesh.position.y = Math.sin((now+f.phase)/400)*0.2; }
+  for (const f of fuelCells) { f.mesh.position.y = Math.sin((now+f.phase)/400)*0.2; f.mesh.rotation.y += 1.4*dt; }
   for (let i=fuelCells.length-1;i>=0;i--) {
     const f = fuelCells[i];
     if (f.mesh.position.z > ship.position.z + CORRIDOR.behindMargin) { scene.remove(f.mesh); fuelCells.splice(i,1); }
@@ -1329,14 +1676,8 @@ function animate() {
 
   handleCollisions();
 
-  if (difficultyT > 0.75) {
-    const p = THREE.MathUtils.clamp((difficultyT-0.75)/0.25, 0, 1);
-    moon.visible = true;
-    moon.scale.setScalar(1 + p*3);
-    moon.position.set(20, 30, ship.position.z - 300 + p*250);
-  }
-
-  if (distanceTravelled >= moonDistance) { winGame(); return; }
+  // (a Lua aparece apenas na cutscene de pouso — ver startLanding)
+  if (distanceTravelled >= moonDistance) { startLanding(); return; }
 
   updateHUD();
 
